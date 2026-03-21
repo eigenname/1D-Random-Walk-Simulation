@@ -15,16 +15,17 @@ np.seterr(divide='ignore', invalid='ignore')
 class BoundWalk:
     #---------------------------------------------------------------------------------
     def __init__(self, total_steps: int,
-                 step_size: float = 0.1, init_pos: float = 0,
+                 step_bounds: tuple = (0.1, 1.0), # replaced step_size!
+                 init_pos: float = 0,
                  boundaries: list = [0, 1], seed: int = None):
         self.X0 = init_pos
         self.N = total_steps
-        self.step_size = step_size
+        self.step_bounds = step_bounds # to be used for uniform random sampling step_size!
         self.a = boundaries[0]
         self.b = boundaries[1]
         self.seed = seed
 
-        self.decimals = max(0, -int(np.floor(np.log10(self.step_size)))) # derive rounding precision
+        self.decimals = max(0, -int(np.floor(np.log10(self.step_bounds[0])))) # derive rounding precision from lower bound of step_bounds!
         self.simulate() # simulate data for random walk, based on given parameters
     #---------------------------------------------------------------------------------
     @staticmethod
@@ -42,7 +43,11 @@ class BoundWalk:
     #---------------------------------------------------------------------------------
     def simulate(self): # GENERATOR for simulating random walk on given parameters
         rng = np.random.default_rng(self.seed)
-        displacements = rng.choice([-1, 1], size=self.N) * self.step_size
+        
+        signs      = rng.choice([-1, 1], size=self.N)
+        magnitudes = rng.uniform(self.step_bounds[0], self.step_bounds[1], size=self.N)
+        displacements = signs * magnitudes
+        
         positions = [self.X0]
         counts = defaultdict(int) # dict that keeps count of probs per outcome
 
@@ -52,13 +57,13 @@ class BoundWalk:
         norms             = [0.0]                    # KLD = 0, nothing has diverged yet
 
         # --- define the uniform reference vector ---
-        domain = np.arange(self.a, self.b + 1e-8, self.step_size)
+        domain = np.arange(self.a, self.b + 1e-8, self.step_bounds[0]) # now fixed by lower bound of step_bounds
         uniform_probs = np.ones(len(domain)) / len(domain) # needed for computing KLD
         ###########################################################
         def pad_to_domain(outcomes, probs):
             aligned = np.zeros(len(domain))
             for outcome, p in zip(outcomes, probs):
-                idx = round((outcome - self.a) / self.step_size)
+                idx = round((outcome - self.a) / self.step_bounds[0])
                 if 0 <= idx < len(domain):
                     aligned[idx] = p
             total = aligned.sum()       # defensive renormalization
@@ -99,10 +104,11 @@ class BoundWalk:
             "nth KLD": norms
         })
     #---------------------------------------------------------------------------------
-    def visualize(self): # WRAPPER for visualizing data (Position(N), Position Prob Hist, Position vs N) & Entropy vs N & KLD vs N
+    def visualize(self): # WRAPPER for visualize (Position(N), Position Prob Hist, Position vs N) & Entropy vs N & KLD vs N
         # Runtime Configuration (RC) Settings
         plt.rcParams["animation.html"] = "jshtml" # adjust (RC) "animation.html" to render animation as interactive HTML widget inline
-        
+        matplotlib.rcParams["animation.embed_limit"] = 50_000_000 # adjust (RC) for increasing animation file size to ~50 MB, may need to turn off for gif creation!
+
         fig = plt.figure(figsize=(14,9))
         gs = gridspec.GridSpec(4, 2, height_ratios=[1,1,1,1])
         #------------------------------------------------------
@@ -113,26 +119,27 @@ class BoundWalk:
                                      fontsize=10, va="top", ha="left")
         ax_anim.axhline(0, color='black', linewidth=0.7, alpha=0.3) # reference line for y=0
 
-        ax_anim.set_title(rf"$\mathcal{{BW}}[N={{{self.N}}}, |\Delta X| \equiv {{{self.step_size}}}; X_0 \equiv {{{self.X0}}}]: \ x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
+        ax_anim.set_title(rf"$\mathcal{{RW}}[N={{{self.N}}}, |\Delta X| \sim \mathcal{{U}}[{{{self.step_bounds[0]}}}, {{{self.step_bounds[1]}}}]; X_0 \equiv {{{self.X0}}}]: \ x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
         ax_anim.get_yaxis().set_visible(False) # don't need to see yaxis ticks/labels
         ax_anim.set_xlabel(rf"$X_{{_{{n}}}} = x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
         ax_anim.set_ylim(-0.05, 0.1) # limit yaxis dimensions
         ax_anim.set_xlim(self.a, self.b) # walk will be confined within (a,b)
         #------------------------------------------------------
         #----------------------- ax_hist ---------------------- !!! 1st row, 2nd col: Probability Histogram !!!
+        bin_width = self.step_bounds[0]   # local alias — bin width is the lower bound of step_bounds
         ax_hist = fig.add_subplot(gs[0,1]) # prob hist of positions
-        centers = np.arange(self.a, self.b + 1e-8, self.step_size) # [0, 1) partitions by 0.1 (default)
-        edges = np.append(centers - self.step_size/2, centers[-1] + self.step_size/2) # each center has edges +/- 0.1 (default), be sure to include edge 1+0.05
+        centers = np.arange(self.a, self.b + 1e-8, bin_width) # [0, 1) partitions by 0.1 (default)
+        edges = np.append(centers - bin_width/2, centers[-1] + bin_width/2) # each center has edges +/- 0.1 (default), be sure to include edge 1+0.05
 
         bars = ax_hist.bar(centers, np.zeros_like(centers),
-                           width=self.step_size, align='center',color="C0", edgecolor="black", alpha=0.7)
+                           width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
         ax_hist.axhline(1/len(centers), color="black", linestyle="--", linewidth=0.8,
                         label=f"U({self.a},{self.b})")
 
         ax_hist.set_title(r"$\mathbb{P}(X_{{_{{n}}}} = x_{{_{{n}}}})$ Histogram")
         ax_hist.set_ylabel(r"$\mathbb{P} \in \mathbb{{R}}_{{_{[0, 1]}}}$ ")
         ax_hist.set_xlabel(rf"$X_{{_{{n}}}} = x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
-        ax_hist.set_xlim(self.a - self.step_size/2, self.b + self.step_size/2)
+        ax_hist.set_xlim(self.a - bin_width/2, self.b + bin_width/2)
         ax_hist.set_xticks(centers) # place x-axis ticks at bin centers
         ax_hist.set_xticklabels([f"{c:.{self.decimals}f}" for c in centers]) 
         ax_hist.legend(loc='best') # enables label for U(a,b) PDF
@@ -175,7 +182,7 @@ class BoundWalk:
         ax_norm.set_ylabel(r"$D_{{KL}}(P||Q)$")
         ax_norm.set_xlabel(r"$n \to N$")
         #========================================================================================
-        #======================== animate HELPER ================================================ 
+        #======================== animate HELPER ================================================ # CHANGE name to something better!
         def animate(frame): # i within [0, len(walk.data)]
             #----------------------- ax_anim ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!
             current_pos = self.data["nth Position"].iloc[frame] # find nth Position given n=frame
@@ -192,12 +199,12 @@ class BoundWalk:
                     bar.set_height(height)
             
                 current_min, current_max = current_positions.min(), current_positions.max()
-                ax_hist.set_xlim(current_min - self.step_size/2, current_max + self.step_size/2)
-                ax_hist.set_xticks(np.arange(current_min, current_max+1, self.step_size))
+                ax_hist.set_xlim(current_min - bin_width/2, current_max + bin_width/2)
+                ax_hist.set_xticks(np.arange(current_min, current_max+1, bin_width))
                 ax_hist.xaxis.set_major_locator(AutoLocator())
             
             else: # frame=0 — particle is at X0 with certainty
-                x0_idx = round((self.X0 - self.a) / self.step_size)
+                x0_idx = round((self.X0 - self.a) / bin_width)
                 for i, bar in enumerate(bars):
                     bar.set_height(1.0 if i == x0_idx else 0.0)
 
@@ -227,7 +234,7 @@ class BoundWalk:
             line_entr.set_data(xvals, entr_y_vals)
             marker_entr.set_data([self.data['n ≤ N'].iloc[frame]], [self.data['nth Entropy'].iloc[frame]])
 
-            text_entr.set_text(fr"$\text{{ln}}({{{len(np.arange(self.a, self.b + 1e-8, self.step_size))}}}) = {{{(np.log(len(centers))).round(4)}}}$" + "\n" + fr"$H[X_{{_{{{frame}}}}}] = {self.data['nth Entropy'].iloc[frame]:.4f}$")
+            text_entr.set_text(fr"$\text{{ln}}({{{len(np.arange(self.a, self.b + 1e-8, bin_width))}}}) = {{{(np.log(len(centers))).round(4)}}}$" + "\n" + fr"$H[X_{{_{{{frame}}}}}] = {self.data['nth Entropy'].iloc[frame]:.4f}$")
 
             ax_entr.relim()
             ax_entr.autoscale_view()
@@ -249,11 +256,13 @@ class BoundWalk:
         plt.close(fig) # ensure no static plots are displayed
         anim = animation.FuncAnimation(fig, animate,
                 frames=len(self.data),
-                interval=100, blit=False  # blitting doesn’t play well with clearing/replotting
+                interval=500, blit=False  # blitting doesn’t play well with clearing/replotting
             )
 
         # --- Display inline in notebook ---
-        matplotlib.rcParams["animation.embed_limit"] = 20_000_000 # adjust (RC) for increasing animation file size to ~50 MB, may need to turn off for gif creation!
+        matplotlib.rcParams["animation.embed_limit"] = 50_000_000 # adjust (RC) for increasing animation file size to ~50 MB, may need to turn off for gif creation!
         display(HTML(anim.to_jshtml()))
     #---------------------------------------------------------------------------------
 #__________________________________________________________________________________________________________________________
+# display(walk.data)
+walk.visualize()
