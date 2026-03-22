@@ -1,5 +1,6 @@
 import numpy as np # initially, to account for seed reproducibility
 import pandas as pd # to store all generated data for reference
+import math # for computing readable tick steps
 from collections import defaultdict # essentially, dict that keeps occurrence count for each position bin
 
 import matplotlib.pyplot as plt # initially, to enable file format for displaying anim inline
@@ -104,6 +105,41 @@ class BoundWalk:
             "nth KLD": norms
         })
     #---------------------------------------------------------------------------------
+    @staticmethod
+    def _readable_tick_step(bin_width, domain_width, max_ticks=10):
+        """
+        Find the smallest round number >= bin_width that produces
+        at most max_ticks labels across the domain.
+        """
+        raw       = domain_width / max_ticks
+        magnitude = 10 ** math.floor(math.log10(raw))
+        for multiplier in [1, 2, 2.5, 5, 10]:
+            candidate = magnitude * multiplier
+            if candidate >= bin_width:
+                return candidate
+        return magnitude * 10
+    #---------------------------------------------------------------------------------
+    @staticmethod
+    def _readable_yticks(p_max, n_ticks=5):
+        """
+        Generate clean ytick values from 0 up to p_max,
+        always including p_max as the top label.
+        """
+        if p_max <= 0:
+            return np.array([0.0])
+        raw       = p_max / n_ticks
+        magnitude = 10 ** math.floor(math.log10(raw))
+        for multiplier in [1, 2, 2.5, 5, 10]:
+            step = magnitude * multiplier
+            if step * n_ticks >= p_max:
+                ticks = np.arange(0, p_max + step, step)
+                ticks = ticks[ticks <= p_max * 1.05]  # don't overshoot too far
+                # always include p_max itself as the top tick
+                if abs(ticks[-1] - p_max) > step * 0.1:
+                    ticks = np.append(ticks, round(p_max, 4))
+                return ticks
+        return np.linspace(0, p_max, n_ticks + 1)
+    #---------------------------------------------------------------------------------
     def visualize(self): # WRAPPER for visualize (Position(N), Position Prob Hist, Position vs N) & Entropy vs N & KLD vs N
         # Runtime Configuration (RC) Settings
         plt.rcParams["animation.html"] = "jshtml" # adjust (RC) "animation.html" to render animation as interactive HTML widget inline
@@ -140,8 +176,12 @@ class BoundWalk:
         ax_hist.set_ylabel(r"$\mathbb{P} \in \mathbb{{R}}_{{_{[0, 1]}}}$ ")
         ax_hist.set_xlabel(rf"$X_{{_{{n}}}} = x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
         ax_hist.set_xlim(self.a - bin_width/2, self.b + bin_width/2)
-        ax_hist.set_xticks(centers) # place x-axis ticks at bin centers
-        ax_hist.set_xticklabels([f"{c:.{self.decimals}f}" for c in centers]) 
+
+        tick_step    = self._readable_tick_step(bin_width, self.b - self.a)
+        tick_centers = np.arange(self.a, self.b + 1e-8, tick_step)
+        ax_hist.set_xticks(tick_centers)
+        ax_hist.set_xticklabels([f"{c:.{self.decimals}f}" for c in tick_centers])
+
         ax_hist.legend(loc='best') # enables label for U(a,b) PDF
         #------------------------------------------------------
         #------------------------------------------------------
@@ -198,9 +238,6 @@ class BoundWalk:
                 for bar, height in zip(bars, probs):
                     bar.set_height(height)
             
-                current_min, current_max = current_positions.min(), current_positions.max()
-                ax_hist.set_xlim(current_min - bin_width/2, current_max + bin_width/2)
-                ax_hist.set_xticks(np.arange(current_min, current_max+1, bin_width))
                 ax_hist.xaxis.set_major_locator(AutoLocator())
             
             else: # frame=0 — particle is at X0 with certainty
@@ -208,10 +245,19 @@ class BoundWalk:
                 for i, bar in enumerate(bars):
                     bar.set_height(1.0 if i == x0_idx else 0.0)
 
-                # ax_hist.get_xaxis().set_visible(False) # don't need to see xaxis ticks/labels
+            # --- dynamic y-axis ---
+            if frame > 0:
+                p_max  = probs.max() if probs.max() > 0 else 1.0
+                yticks = self._readable_yticks(p_max)
+                ax_hist.set_ylim(0, yticks[-1] * 1.05)
+                ax_hist.set_yticks(yticks)
+                ax_hist.set_yticklabels([f"{y:.2f}" for y in yticks])
+            else:
+                ax_hist.set_ylim(0, 1.05)
+                ax_hist.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
+                ax_hist.set_yticklabels(["0.00", "0.25", "0.50", "0.75", "1.00"])
 
-            ax_hist.set_ylim(0, 1)
-            ax_hist.set_xlim(0, 1)
+            ax_hist.set_xlim(self.a, self.b)
             #------------------------------------------------------
             #------------------------------------------------------
             #----------------------- ax_plot ---------------------- !!! 2nd row: Position vs N plot !!!

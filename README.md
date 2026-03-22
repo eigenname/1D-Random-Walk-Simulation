@@ -49,8 +49,30 @@ walk.visualize()
 
 ---
 
+## Class Methods
+
+| Method | Type | Description |
+|---|---|---|
+| `simulate()` | instance | Generates walk and computes per-step observables. Called automatically on instantiation. |
+| `visualize()` | instance | Renders the animated visualization inline as jshtml. Call explicitly after instantiation. |
+| `_reflect(pos, a, b)` | static | Fold-back reflection rule — handles arbitrarily large boundary overshoots. |
+| `_readable_tick_step(bin_width, domain_width)` | static | Derives a clean x-tick spacing from bin width so histogram labels stay readable at any resolution. |
+| `_readable_yticks(p_max)` | static | Generates clean y-tick values up to the current maximum probability — scales dynamically per frame. |
+
+---
+
+## Visualization Notes
+
+The histogram adapts intelligently to the bin resolution set by `step_bounds[0]`:
+
+- **x-ticks** — spacing is derived automatically via `_readable_tick_step` so that at most 10 labels appear regardless of bin count. For example, `step_bounds[0]=0.01` gives 100 bins but still shows clean `0.10` spaced labels rather than 100 overlapping tick marks.
+- **y-axis** — scales dynamically per frame via `_readable_yticks`, tracking the current maximum empirical probability. Early frames with concentrated distributions show a zoomed-in y-axis; as the distribution flattens toward uniform the axis rescales accordingly.
+- **x-axis** — fixed at the full domain $[a, b]$ every frame so the histogram always shows the complete picture.
+
+---
+
 ## Notes
 
 - The notebook is committed with outputs cleared. Re-run all cells to regenerate the animation locally.
 - GitHub does not render jshtml animations in notebook previews. Use [nbviewer](https://nbviewer.org) by pasting the notebook's GitHub URL to view the full animated output.
-- **Next — Animation 1.2**: Gaussian-distributed step sizes, connecting step magnitude variance to temperature and yielding a chi-squared energy distribution as a physically motivated observable.
+- **Next — Animation 1.2**: Unified class supporting both fixed and uniformly randomly sampled step sizes via a single parameter interface, before moving toward Gaussian steps and physical observables like velocity and energy distributions.
