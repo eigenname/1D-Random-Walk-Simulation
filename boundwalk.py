@@ -121,6 +121,10 @@ class BoundWalk:
     #---------------------------------------------------------------------------------
     @staticmethod
     def _readable_yticks(p_max, n_ticks=5):
+        """
+        Generate clean ytick values from 0 up to p_max,
+        scaling dynamically to the current maximum empirical probability per frame.
+        """
         if p_max <= 0:
             return np.array([0.0])
         raw       = p_max / n_ticks
