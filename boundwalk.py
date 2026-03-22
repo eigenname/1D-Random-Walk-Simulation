@@ -121,10 +121,6 @@ class BoundWalk:
     #---------------------------------------------------------------------------------
     @staticmethod
     def _readable_yticks(p_max, n_ticks=5):
-        """
-        Generate clean ytick values from 0 up to p_max,
-        always including p_max as the top label.
-        """
         if p_max <= 0:
             return np.array([0.0])
         raw       = p_max / n_ticks
@@ -133,11 +129,8 @@ class BoundWalk:
             step = magnitude * multiplier
             if step * n_ticks >= p_max:
                 ticks = np.arange(0, p_max + step, step)
-                ticks = ticks[ticks <= p_max * 1.05]  # don't overshoot too far
-                # always include p_max itself as the top tick
-                if abs(ticks[-1] - p_max) > step * 0.1:
-                    ticks = np.append(ticks, round(p_max, 4))
-                return ticks
+                ticks = ticks[ticks <= p_max * 1.05]
+                return ticks                              # just return clean round ticks
         return np.linspace(0, p_max, n_ticks + 1)
     #---------------------------------------------------------------------------------
     def visualize(self): # WRAPPER for visualize (Position(N), Position Prob Hist, Position vs N) & Entropy vs N & KLD vs N
