@@ -1,16 +1,93 @@
-  These files are used for simulating 1D random walks of unit step size and equal probabilities of stepping to the left/right. If not specified, the walk will start at the origin by default.  
-As for the implementation for the notebook file, there are 2 stages: initial and final.
+# Random Walk Simulator — Static Visualization
 
+A 1D discrete random walk simulator built in Python, developed as a class project for PHSX 671: Thermal Physics and extended independently. Simulates unit step size walks with equal probability of stepping left or right, starting at the origin by default. The project is organized into two stages, each building conceptually on the previous to connect probabilistic dynamics, statistical scaling laws, and information-theoretic observables.
 
-  The initial stage starts with simulating such a 1D random walk aforementioned, where a box & whisker plot and histogram for all the positions in a simulated walk will be visualized, along with a plot of the position of the walker with respect to the step count.
+---
 
-Then a trial of random walks was implemented. That is, the goal is to determine the expected net displacement of a random walk of a certain step count. So a trial of measurements/walks, is a collection of multiple random walks, all defined to start at the origin and to have the same step count. Each walk's net displacement would be recorded/measured to calculate the expected net displacement, with respect to the defined step count. The standard deviation for the net displacment would be calculated from this as well. Data visualization involves the same box & whisker plot and histogram as before, except for net displacements from simulated random walks, not positions for an individually simulated random walk. It's here that we approximate the continuous probability distribution of net displacements with a gaussian model, which improves its predicitions as step count becomes large. The position vs step count plot is provided as well except for more than one simulated random walk. An additional plot for net displacement vs the number of simulated walks is also provided, where the expected net displacement along with one standard deviation is plotted with respect to the number of simulated walks. The interval from the negative square root of step count to the positive square root of step count is also plotted to display the convergence of the standard deviation towards the square root of step count, as the number of walks increases.
+## Terminology
 
-Then it's from here that a list was implemented, that is, a list of trials. Like what a trial is for a walk, a list is for a trial: a collection of trials. Now just like a physics experiment, a step count can be established for a trial and have, for example, 100 generated random walks of that step count to determine the expected net displacement and standard deviation with respect to that step count. This can be repeated for as many trials as desired, assuming that the step count increases in some way for each trial, respectively. That way, the standard deviations respective to a given step count can be plotted against the step count as it becomes large. Thus at this point, it can be verified that the variance of a random walk is directly proportional to the step count due to the standard deviations exhibiting a positive square root of step count trend as step count becomes large. 
+Three levels of simulation structure are used throughout. Each level aggregates the one below it:
 
+**Walk** — a single random walk of $N$ steps. The fundamental unit. Produces one trajectory, one position distribution.
 
-As for the final stage of development, the individually simulated random walk and individual trial simulations were revisited to implement an entropy plot for both scenarios. Entropy vs position for an individually generated random walk and Entropy vs Net Displacements for a trial of simulated random walks. 
+**Trial** — a collection of multiple walks, all sharing the same step count $N$ and all starting at the origin. Think of it as a physics experiment: run the same experiment $M$ times under identical conditions and record each outcome. The trial's observable is the **net displacement** of each walk — where did each walker end up after $N$ steps? From this, the expected net displacement $\langle X_N \rangle$ and its standard deviation $\sigma_N$ are estimated empirically across the $M$ walks.
 
-Then boundaries symmetric with respect to the origin were implemented and imposed on simulated random walks and trial simulations. The same data visualization is displayed like before but with the additional consideration that positions/net displacements are confined within a symmetric real-valued interval.
+**List** — a collection of trials at increasing step counts $N_1 < N_2 < \cdots$. Like repeating the same experiment at different parameter settings. Enables studying how trial-level statistics (expected displacement, standard deviation, entropy) scale as $N$ grows large.
 
-Finally, to then see that entropy is logarithmic. Each trial of simulated random walks, with boundaries, for a given step count has an associated entropy, where the max entropy is the sum of the entropy over all probabilities for the net displacements of the trial. So the max entropy of each trial was collected and plotted as the step count becomes large. To where, it can be seen that maximal entropy is logarithmic and can be modeled as such using a series approximate up to any order term (16th-Order log term was used as the best fitted logarithm model). The standard deviations vs step count is still an optional data visualization, though it is noted that the imposed boundaries also cause the standard deviation to be logarithmic (no longer behaving like the square root of step count) and the same log order terms were fitted to the standard deviations.
+---
+
+## Stage 1 — Walk and Trial Simulations
+
+### Single Walk
+Simulates one random walk of $N$ steps. Visualizations include:
+- Position vs step count plot
+- Histogram of positions visited
+- Box and whisker plot of positions
+
+### Trial (Ensemble of Walks)
+Simulates $M$ walks of fixed step count $N$. Key results demonstrated empirically:
+- Expected net displacement $\langle X_N \rangle \approx 0$ — the walk is unbiased
+- Standard deviation $\sigma_N \approx \sqrt{N}$ — displacement spreads as the square root of step count
+- Net displacement distribution approximated by a Gaussian model, improving in accuracy as $N$ grows — a direct demonstration of the Central Limit Theorem
+
+Visualizations include:
+- Histogram and box plot of net displacements across all walks in the trial
+- Position vs step count for multiple walks simultaneously
+- Net displacement vs number of walks, with $\pm\sqrt{N}$ convergence band showing the standard deviation settling toward $\sqrt{N}$
+
+### List (Sweep Over Step Counts)
+Runs a series of trials at increasing $N$. Demonstrates that variance scales linearly with step count by plotting $\sigma_N$ vs $N$ — the standard deviations follow a positive $\sqrt{N}$ trend, confirming that the variance of a random walk is directly proportional to step count.
+
+---
+
+## Stage 2 — Entropy and Bounded Walks
+
+### Entropy
+Shannon entropy $H = -\sum_i p_i \ln p_i$ is introduced as an observable at both levels:
+- **Entropy vs position** for a single walk — how uncertainty over the walker's position evolves with step count
+- **Entropy vs net displacement** for a trial — how uncertainty over outcomes is distributed across the ensemble
+
+### Bounded Walks
+Symmetric reflecting boundaries are imposed around the origin, confining positions and net displacements to a finite interval $[-L, L]$. The same walk, trial, and list visualizations from Stage 1 are reproduced under this constraint.
+
+### Entropy Scaling — The Culminating Result
+Each trial in a list has a maximum entropy $S_{max}$ associated with its net displacement distribution. Plotting $S_{max}$ against step count $N$ reveals that **maximal entropy grows logarithmically** with step count:
+
+$$S_{max} \sim \ln N$$
+
+This is fitted using a logarithmic series approximation up to the 16th-order term. The result connects directly to Boltzmann's entropy formula $S = k_B \ln W$, where $W$ is the number of accessible microstates — here growing with $N$ as the bounded walk explores more of its domain.
+
+As a consequence of the boundaries, the standard deviation also becomes logarithmic rather than following the $\sqrt{N}$ scaling of the unbounded case, and is fitted with the same log series model.
+
+---
+
+## Relationship to Other Versions
+
+This is the **original static visualization** branch — no animation, no KL divergence tracking, no real-time observables. It represents the foundational project from which the animated versions were developed:
+
+| Version | Description |
+|---|---|
+| **This branch** | Static plots, full walk/trial/list hierarchy, entropy scaling law |
+| **Animated 1.0** | Real-time animation, fixed step size, Shannon entropy + KLD tracked per step |
+| **Animated 1.1** | Same as 1.0 but with uniformly randomly sampled step size |
+
+The logarithmic entropy result demonstrated here — that $S_{max} \sim \ln N$ for bounded walks — is the same relationship the animated versions demonstrate in real time through the entropy plot converging toward the Boltzmann supremum $\ln W$.
+
+---
+
+## Dependencies
+
+```
+numpy
+pandas
+matplotlib
+scipy
+```
+
+---
+
+## Notes
+
+- All walks start at the origin by default unless otherwise specified.
+- The Gaussian approximation to the net displacement distribution improves as $N$ increases — this is the Central Limit Theorem in action, and is most visible in the trial-level histogram.
+- The 16th-order logarithmic series fit to $S_{max}$ vs $N$ is chosen empirically as the best fitting model at the step counts simulated; lower-order fits are also available and may be sufficient for smaller $N$.
