@@ -140,7 +140,6 @@ class BoundWalk:
     def visualize(self): # WRAPPER for visualize (Position(N), Position Prob Hist, Position vs N) & Entropy vs N & KLD vs N
         # Runtime Configuration (RC) Settings
         plt.rcParams["animation.html"] = "jshtml" # adjust (RC) "animation.html" to render animation as interactive HTML widget inline
-        matplotlib.rcParams["animation.embed_limit"] = 50_000_000 # adjust (RC) for increasing animation file size to ~50 MB, may need to turn off for gif creation!
 
         fig = plt.figure(figsize=(14,9))
         gs = gridspec.GridSpec(4, 2, height_ratios=[1,1,1,1])
@@ -152,7 +151,7 @@ class BoundWalk:
                                      fontsize=10, va="top", ha="left")
         ax_anim.axhline(0, color='black', linewidth=0.7, alpha=0.3) # reference line for y=0
 
-        ax_anim.set_title(rf"$\mathcal{{RW}}[N={{{self.N}}}, |\Delta X| \sim \mathcal{{U}}[{{{self.step_bounds[0]}}}, {{{self.step_bounds[1]}}}]; X_0 \equiv {{{self.X0}}}]: \ x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
+        ax_anim.set_title(rf"$\mathcal{{BW}}[N={{{self.N}}}, |\Delta X| \sim \mathcal{{U}}[{{{self.step_bounds[0]}}}, {{{self.step_bounds[1]}}}]; X_0 \equiv {{{self.X0}}}]: \ x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
         ax_anim.get_yaxis().set_visible(False) # don't need to see yaxis ticks/labels
         ax_anim.set_xlabel(rf"$X_{{_{{n}}}} = x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
         ax_anim.set_ylim(-0.05, 0.1) # limit yaxis dimensions
@@ -215,8 +214,8 @@ class BoundWalk:
                                 fontsize=10, va="top", ha="left")
         ax_norm.axhline(0, color='black', linewidth=0.7, alpha=0.3) # reference for y=0
 
-        ax_norm.set_title(r"$D_{{KL}}(P||Q)$ vs $n \to N$")
-        ax_norm.set_ylabel(r"$D_{{KL}}(P||Q)$")
+        ax_norm.set_title(r"$D_{{KL}}(\mathbb{P}||\mathcal{U})$ vs $n \to N$")
+        ax_norm.set_ylabel(r"$D_{{KL}}(\mathbb{P}||\mathcal{U})$")
         ax_norm.set_xlabel(r"$n \to N$")
         #========================================================================================
         #======================== animate HELPER ================================================ # CHANGE name to something better!
@@ -288,7 +287,7 @@ class BoundWalk:
 
             line_kld.set_data(xvals, kld_yvals)
             marker_kld.set_data([self.data['n ≤ N'].iloc[frame]], [self.data['nth KLD'].iloc[frame]])
-            text_kld.set_text(fr"$D_{{KL}}(P||Q) = {self.data['nth KLD'].iloc[frame]:.5f}$")
+            text_kld.set_text(fr"$D_{{KL}}(\mathbb{{P}}||\mathcal{{U}}) = {self.data['nth KLD'].iloc[frame]:.5f}$")
 
             ax_norm.relim()
             ax_norm.autoscale_view()
@@ -304,6 +303,6 @@ class BoundWalk:
 
         # --- Display inline in notebook ---
         matplotlib.rcParams["animation.embed_limit"] = 50_000_000 # adjust (RC) for increasing animation file size to ~50 MB, may need to turn off for gif creation!
-        display(HTML(anim.to_jshtml()))
+        display(HTML(anim.to_jshtml())) # for interactive HTML widget inline in notebook
     #---------------------------------------------------------------------------------
 #__________________________________________________________________________________________________________________________
