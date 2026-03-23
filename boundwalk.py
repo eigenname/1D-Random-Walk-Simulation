@@ -141,8 +141,8 @@ class BoundWalk:
         # Runtime Configuration (RC) Settings
         plt.rcParams["animation.html"] = "jshtml" # adjust (RC) "animation.html" to render animation as interactive HTML widget inline
 
-        fig = plt.figure(figsize=(14,9))
-        gs = gridspec.GridSpec(4, 2, height_ratios=[1,1,1,1])
+        fig = plt.figure(figsize=(12,8))
+        gs = gridspec.GridSpec(4, 2, height_ratios=[1,1,1,1], hspace=0.6)
         #------------------------------------------------------
         #----------------------- ax_anim ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!
         ax_anim = fig.add_subplot(gs[0,0]) # 1d bound rand walk anim
@@ -191,6 +191,7 @@ class BoundWalk:
         ax_plot.set_title(r"$X_{{_{{n}}}} = x_{{_{{n}}}}$ vs $n \to N$")
         ax_plot.set_ylabel(r"$X_{{_{{n}}}} = x_{{_{{n}}}}$")
         ax_plot.set_ylim(self.a, self.b)
+        ax_plot.set_xlim(0, 10)    # add this — propagates to ax_entr and ax_norm via sharex
         ax_plot.tick_params(labelbottom=False)   # hide x tick labels
         #------------------------------------------------------
         #----------------------- ax_entr ---------------------- !!! 3rd row: Entropy vs N Plot !!!
@@ -200,10 +201,10 @@ class BoundWalk:
         text_entr = ax_entr.text(0.01, 0.95, "", transform=ax_entr.transAxes,
                                  fontsize=10, va="top", ha="left")
         ax_entr.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7)  # Boltzmann Entropy supremum
-        ax_entr.axhline(0, color='black', linewidth=0.7, alpha=0.3) # reference for y=0
 
         ax_entr.set_title(r"$H[X_{{_{{n}}}}]$ vs $n \to N$")
         ax_entr.set_ylabel(r"$H[X_{{_{{n}}}}]$")
+        ax_entr.set_ylim(0, np.log(len(centers))+0.1) # default before any data — positive only
         ax_entr.tick_params(labelbottom=False)   # hide x tick labels
         #------------------------------------------------------
         #----------------------- ax_norm ---------------------- !!! 4th row: KLD vs N Plot !!!
@@ -212,11 +213,11 @@ class BoundWalk:
         marker_kld, = ax_norm.plot([], [], ".", color="C0")
         text_kld = ax_norm.text(0.01, 0.95, "", transform=ax_norm.transAxes,
                                 fontsize=10, va="top", ha="left")
-        ax_norm.axhline(0, color='black', linewidth=0.7, alpha=0.3) # reference for y=0
 
         ax_norm.set_title(r"$D_{{KL}}(\mathbb{P}||\mathcal{U})$ vs $n \to N$")
         ax_norm.set_ylabel(r"$D_{{KL}}(\mathbb{P}||\mathcal{U})$")
         ax_norm.set_xlabel(r"$n \to N$")
+        ax_norm.set_ylim(0, np.log(len(centers))+0.1)      # default before any data — positive only 
         #========================================================================================
         #======================== animate HELPER ================================================ # CHANGE name to something better!
         def animate(frame): # i within [0, len(walk.data)]
@@ -264,9 +265,11 @@ class BoundWalk:
             marker_plot.set_data([self.data['n ≤ N'].iloc[frame]], [self.data['nth Position'].iloc[frame]])
             line_text.set_text(fr"$X_{{_{{{frame}}}}} = $ {self.data['nth Position'].iloc[frame]}")
 
-
             ax_plot.relim()
-            ax_plot.autoscale_view()
+            if frame <= 5:
+                ax_plot.set_xlim(0, 5)      # fixed at [0,10] for first 10 frames
+            else:
+                ax_plot.set_xlim(0, frame)   # expand as n grows beyond 10
             ax_plot.xaxis.set_major_locator(AutoLocator()) # only integer x ticks!
             #------------------------------------------------------
             #----------------------- ax_entr ---------------------- !!! 3rd row: Entropy vs N Plot !!!
@@ -279,7 +282,6 @@ class BoundWalk:
             text_entr.set_text(fr"$\text{{ln}}({{{len(np.arange(self.a, self.b + 1e-8, bin_width))}}}) = {{{(np.log(len(centers))).round(4)}}}$" + "\n" + fr"$H[X_{{_{{{frame}}}}}] = {self.data['nth Entropy'].iloc[frame]:.4f}$")
 
             ax_entr.relim()
-            ax_entr.autoscale_view()
             ax_entr.xaxis.set_major_locator(AutoLocator()) # only integer x ticks!
             #------------------------------------------------------
             #----------------------- ax_norm ---------------------- !!! 4th row: KLD vs N Plot !!!
@@ -290,7 +292,6 @@ class BoundWalk:
             text_kld.set_text(fr"$D_{{KL}}(\mathbb{{P}}||\mathcal{{U}}) = {self.data['nth KLD'].iloc[frame]:.5f}$")
 
             ax_norm.relim()
-            ax_norm.autoscale_view()
             ax_norm.xaxis.set_major_locator(AutoLocator()) # only integer x ticks!
         #========================================================================================
         plt.subplots_adjust(left=0.075, bottom=0.075, hspace=0.4)  # increase margins

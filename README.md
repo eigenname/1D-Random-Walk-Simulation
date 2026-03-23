@@ -63,11 +63,13 @@ walk.visualize()
 
 ## Visualization Notes
 
-The histogram adapts intelligently to the bin resolution set by `step_bounds[0]`:
+The histogram and plots adapt intelligently across all panels:
 
-- **x-ticks** — spacing is derived automatically via `_readable_tick_step` so that at most 10 labels appear regardless of bin count. For example, `step_bounds[0]=0.01` gives 100 bins but still shows clean `0.10` spaced labels rather than 100 overlapping tick marks.
-- **y-axis** — scales dynamically per frame via `_readable_yticks`, tracking the current maximum empirical probability. Early frames with concentrated distributions show a zoomed-in y-axis; as the distribution flattens toward uniform the axis rescales accordingly.
-- **x-axis** — fixed at the full domain $[a, b]$ every frame so the histogram always shows the complete picture.
+- **Histogram x-ticks** — spacing derived automatically via `_readable_tick_step` so at most 10 labels appear regardless of bin count. For example, `step_bounds[0]=0.01` gives 100 bins but shows clean `0.10` spaced labels rather than 100 overlapping tick marks.
+- **Histogram y-axis** — scales dynamically per frame via `_readable_yticks`, tracking the current maximum empirical probability. Early frames show a zoomed-in y-axis; as the distribution flattens toward uniform it rescales accordingly.
+- **Histogram x-axis** — fixed at the full domain $[a, b]$ every frame so the complete picture is always visible.
+- **Shared x-axis (position, entropy, KLD plots)** — starts at $[0, 5]$ and expands dynamically as $n$ grows beyond 5, driven by the position vs $n$ plot and propagated to the entropy and KLD plots via `sharex`. Entropy y-axis is fixed at $[0, \ln W + 0.1]$; KLD y-axis autoscales from data.
+- **KLD and entropy** — initialized with positive-only y-axes, eliminating the garbage axis values that appeared at frame 0 before any data was present.
 
 ---
 
