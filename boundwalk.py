@@ -105,38 +105,6 @@ class BoundWalk:
             "nth KLD": norms
         })
     #---------------------------------------------------------------------------------
-    @staticmethod
-    def _readable_tick_step(bin_width, domain_width, max_ticks=10):
-        """
-        Find the smallest round number >= bin_width that produces
-        at most max_ticks labels across the domain.
-        """
-        raw       = domain_width / max_ticks
-        magnitude = 10 ** math.floor(math.log10(raw))
-        for multiplier in [1, 2, 2.5, 5, 10]:
-            candidate = magnitude * multiplier
-            if candidate >= bin_width:
-                return candidate
-        return magnitude * 10
-    #---------------------------------------------------------------------------------
-    @staticmethod
-    def _readable_yticks(p_max, n_ticks=5):
-        """
-        Generate clean ytick values from 0 up to p_max,
-        scaling dynamically to the current maximum empirical probability per frame.
-        """
-        if p_max <= 0:
-            return np.array([0.0])
-        raw       = p_max / n_ticks
-        magnitude = 10 ** math.floor(math.log10(raw))
-        for multiplier in [1, 2, 2.5, 5, 10]:
-            step = magnitude * multiplier
-            if step * n_ticks >= p_max:
-                ticks = np.arange(0, p_max + step, step)
-                ticks = ticks[ticks <= p_max * 1.05]
-                return ticks                              # just return clean round ticks
-        return np.linspace(0, p_max, n_ticks + 1)
-    #---------------------------------------------------------------------------------
     def visualize(self): # WRAPPER for visualize (Position(N), Position Prob Hist, Position vs N) & Entropy vs N & KLD vs N
         # Runtime Configuration (RC) Settings
         plt.rcParams["animation.html"] = "jshtml" # adjust (RC) "animation.html" to render animation as interactive HTML widget inline
@@ -151,7 +119,7 @@ class BoundWalk:
                                      fontsize=10, va="top", ha="left")
         ax_anim.axhline(0, color='black', linewidth=0.7, alpha=0.3) # reference line for y=0
 
-        ax_anim.set_title(rf"$\mathcal{{BW}}[N={{{self.N}}}, |\Delta X| \sim \mathcal{{U}}[{{{self.step_bounds[0]}}}, {{{self.step_bounds[1]}}}]; X_0 \equiv {{{self.X0}}}]: \ x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
+        ax_anim.set_title(rf"$\mathcal{{BW}}[N={{{self.N}}}, |\Delta X| \sim \mathcal{{U}}({{{self.step_bounds[0]}}}, {{{self.step_bounds[1]}}}); X_0 \equiv {{{self.X0}}}]: \ x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
         ax_anim.get_yaxis().set_visible(False) # don't need to see yaxis ticks/labels
         ax_anim.set_xlabel(rf"$X_{{_{{n}}}} = x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
         ax_anim.set_ylim(-0.05, 0.1) # limit yaxis dimensions
@@ -163,20 +131,13 @@ class BoundWalk:
         centers = np.arange(self.a, self.b + 1e-8, bin_width) # [0, 1) partitions by 0.1 (default)
         edges = np.append(centers - bin_width/2, centers[-1] + bin_width/2) # each center has edges +/- 0.1 (default), be sure to include edge 1+0.05
 
-        bars = ax_hist.bar(centers, np.zeros_like(centers),
-                           width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
-        ax_hist.axhline(1/len(centers), color="black", linestyle="--", linewidth=0.8,
-                        label=f"U({self.a},{self.b})")
+        bars = ax_hist.bar(centers, np.zeros_like(centers), width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
+        ax_hist.axhline(1/len(centers), color="black", linestyle="--", linewidth=0.8, label=f"U({self.a},{self.b})")
 
         ax_hist.set_title(r"$\mathbb{P}(X_{{_{{n}}}} = x_{{_{{n}}}})$ Histogram")
         ax_hist.set_ylabel(r"$\mathbb{P} \in \mathbb{{R}}_{{_{[0, 1]}}}$ ")
         ax_hist.set_xlabel(rf"$X_{{_{{n}}}} = x_{{_{{n}}}} \in \mathbb{{R}}_{{_{{{[self.a, self.b]}}}}}$")
-        ax_hist.set_xlim(self.a - bin_width/2, self.b + bin_width/2)
-
-        tick_step    = self._readable_tick_step(bin_width, self.b - self.a)
-        tick_centers = np.arange(self.a, self.b + 1e-8, tick_step)
-        ax_hist.set_xticks(tick_centers)
-        ax_hist.set_xticklabels([f"{c:.{self.decimals}f}" for c in tick_centers])
+        ax_hist.set_xlim(self.a, self.b)
 
         ax_hist.legend(loc='best') # enables label for U(a,b) PDF
         #------------------------------------------------------
@@ -185,8 +146,7 @@ class BoundWalk:
         ax_plot = fig.add_subplot(gs[1, :]) # plot of positions vs n
         line_plot, = ax_plot.plot([], [], color="C0", alpha=0.7)
         marker_plot, = ax_plot.plot([], [], ".", color="C0")
-        line_text = ax_plot.text(0.01, 0.95, "", transform=ax_plot.transAxes,
-                                 fontsize=10, va="top", ha="left")
+        line_text = ax_plot.text(0.01, 0.95, "", transform=ax_plot.transAxes, fontsize=10, va="top", ha="left")
 
         ax_plot.set_title(r"$X_{{_{{n}}}} = x_{{_{{n}}}}$ vs $n \to N$")
         ax_plot.set_ylabel(r"$X_{{_{{n}}}} = x_{{_{{n}}}}$")
@@ -198,8 +158,7 @@ class BoundWalk:
         ax_entr = fig.add_subplot(gs[2,:], sharex=ax_plot) # entropy vs n
         line_entr, = ax_entr.plot([], [], color="C0", alpha=0.7)
         marker_entr, = ax_entr.plot([], [], ".", color="C0")
-        text_entr = ax_entr.text(0.01, 0.95, "", transform=ax_entr.transAxes,
-                                 fontsize=10, va="top", ha="left")
+        text_entr = ax_entr.text(0.01, 0.95, "", transform=ax_entr.transAxes, fontsize=10, va="top", ha="left")
         ax_entr.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7)  # Boltzmann Entropy supremum
 
         ax_entr.set_title(r"$H[X_{{_{{n}}}}]$ vs $n \to N$")
@@ -211,8 +170,7 @@ class BoundWalk:
         ax_norm = fig.add_subplot(gs[3,:], sharex=ax_plot) # KLD vs N
         line_kld, = ax_norm.plot([], [], color="C0", alpha=0.7)
         marker_kld, = ax_norm.plot([], [], ".", color="C0")
-        text_kld = ax_norm.text(0.01, 0.95, "", transform=ax_norm.transAxes,
-                                fontsize=10, va="top", ha="left")
+        text_kld = ax_norm.text(0.01, 0.95, "", transform=ax_norm.transAxes, fontsize=10, va="top", ha="left")
 
         ax_norm.set_title(r"$D_{{KL}}(\mathbb{P}||\mathcal{U})$ vs $n \to N$")
         ax_norm.set_ylabel(r"$D_{{KL}}(\mathbb{P}||\mathcal{U})$")
@@ -244,17 +202,14 @@ class BoundWalk:
 
             # --- dynamic y-axis ---
             if frame > 0:
-                p_max  = probs.max() if probs.max() > 0 else 1.0
-                yticks = self._readable_yticks(p_max)
-                ax_hist.set_ylim(0, yticks[-1] * 1.05)
+                ax_hist.set_ylim(0, probs.max())
+                yticks = np.linspace(0, probs.max(), 5)
                 ax_hist.set_yticks(yticks)
-                ax_hist.set_yticklabels([f"{y:.2f}" for y in yticks])
+                ax_hist.set_yticklabels([f"{y:.3f}" for y in yticks])
             else:
                 ax_hist.set_ylim(0, 1.05)
                 ax_hist.set_yticks([0.0, 0.25, 0.5, 0.75, 1.0])
                 ax_hist.set_yticklabels(["0.00", "0.25", "0.50", "0.75", "1.00"])
-
-            ax_hist.set_xlim(self.a, self.b)
             #------------------------------------------------------
             #------------------------------------------------------
             #----------------------- ax_plot ---------------------- !!! 2nd row: Position vs N plot !!!
