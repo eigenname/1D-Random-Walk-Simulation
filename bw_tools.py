@@ -1,5 +1,5 @@
 import numpy as np
-from math import log10, floor
+from math import log10, floor, sqrt
 
 
 # For specifying step_size during object instantiation
@@ -24,20 +24,20 @@ def find_rounding_precision(step_size: (float | int) | dict) -> int:
 
 
 # For creating displacements based on given parameters, whether step_size is fixed or randomly sampled
-def create_displacements(seed: int, total_steps: int, step_size: (float | int) | dict):
+def create_displacements(seed: int, total_steps: int, step_size: (float | int) | dict, time_scale: float) -> np.ndarray:
     RNG = np.random.default_rng(seed) # initialize seed, if given
 
     if isinstance (step_size, (float, int)): # if step_size is float or int, is fixed
-        return RNG.choice([-1, 1], size=total_steps) * step_size # random choice of left or right, multiplied by fixed step_size
+        return RNG.choice([-1, 1], size=total_steps) * step_size * sqrt(time_scale) # random choice of left or right, multiplied by fixed step_size
     
     else: # if step_size is dict, step_size is to be randomly sampled
         match step_size['type']:
             case 'uniform': # generate random magnitudes from uniform distribution
                 magnitudes = RNG.uniform(step_size['bounds'][0], step_size['bounds'][1], size=total_steps) # random magnitudes from uniform distribution
-                return RNG.choice([-1, 1], size=total_steps) * magnitudes 
+                return RNG.choice([-1, 1], size=total_steps) * magnitudes * sqrt(time_scale)
             
             case 'normal': # generate random magnitudes from normal distribution
-                return RNG.normal(step_size['params'][0], step_size['params'][1], size=total_steps) # random magnitudes from normal distribution
+                return RNG.normal(step_size['params'][0], step_size['params'][1], size=total_steps) * sqrt(time_scale) # random magnitudes from normal distribution
 
 # For determining bin width for histogram and domain definition, based on step_size parameters, whether to be fixed or randomly sampled
 def get_bin_width(step_size: (float | int) | dict) -> float:
