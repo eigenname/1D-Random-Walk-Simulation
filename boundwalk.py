@@ -1,7 +1,6 @@
 from bw_tools import ( # import all helper functions from bw_tools.py
     find_rounding_precision,
     create_displacements,
-    define_domain,
     pad_to_domain,
     reflect,
     get_bin_width
@@ -31,11 +30,10 @@ class BoundWalk:
     initial_position: float = 0 # default initial position at 0
     boundaries: tuple = (0, 1) # default boundaries for the walk
     seed: int = None # optional seed for reproducibility, default is 'None'.
-    fps: int = 500 # frames per second for animation, adjust as needed for smoother or faster animation
+    ms_between_frames: int = 500 # milliseconds between frames in animation, default is 500ms (0.5s)
     #__________________________________________________________________________________________________________________________
     def __post_init__(self): 
         self.__simulate__()
-        self.__visualize__()
     #__________________________________________________________________________________________________________________________
     def __simulate__(self): # generates data for random walk, simulated based on given parameters
         X0 = self.initial_position
@@ -53,8 +51,8 @@ class BoundWalk:
         Entropies         = [0.0]                    # H = 0, certain state
         KLDs             = [0.0]                    # KLD = 0, nothing has diverged yet
  
-        self.bin_width = get_bin_width(ΔX) # if step_size is float/int, is fixed, bin width is just the step size itself
-        self.domain = define_domain(left_bound, right_bound, ΔX) 
+        self.bin_width = get_bin_width(ΔX) # determine bin width for histogram and domain definition, based on step_size parameters, whether to be fixed or randomly sampled 
+        self.domain = np.arange(left_bound, right_bound, self.bin_width) 
         uniform_probs = np.ones(len(self.domain)) / len(self.domain) # needed for computing KLD
 
         Displacements = [0] # to record displacements after corrections within reflective bounds [0,1]
@@ -95,8 +93,8 @@ class BoundWalk:
         ΔX = self.step_size
         left_bound, right_bound = self.boundaries
         bin_width = self.bin_width
-        eigenvalues = self.domain # 
-        edges = np.append(eigenvalues - bin_width/2, eigenvalues[-1] + bin_width/2)
+        centers = self.domain 
+        edges = np.append(centers - bin_width/2, centers[-1] + bin_width/2)
 
         fig = plt.figure(figsize=(12,8))
         gs = GridSpec(4, 2, height_ratios=[1,1,1,1], hspace=0.6)
@@ -125,8 +123,8 @@ class BoundWalk:
 
         #----------------------- histogram ---------------------- !!! 1st row, 2nd col: Probability Histogram !!!
         histogram = fig.add_subplot(gs[0,1]) # prob hist of positions
-        bars = histogram.bar(eigenvalues, np.zeros_like(eigenvalues), width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
-        histogram.axhline(1/len(eigenvalues), color="red", linestyle="--", linewidth=0.8, label=rf"$U[{left_bound},{right_bound}]$")
+        bars = histogram.bar(centers, np.zeros_like(centers), width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
+        histogram.axhline(1/len(centers), color="red", linestyle="--", linewidth=0.8, label=rf"$U[{left_bound},{right_bound}]$")
 
         histogram.set_title(r"$\mathbb{P}(X_{{_{{n}}}} = x_{{_{{n}}}})$ Histogram")
         histogram.set_ylabel(r"$\mathbb{P} \in \mathbb{{R}}_{{_{[0, 1]}}}$ ")
@@ -150,11 +148,11 @@ class BoundWalk:
         entropy_plot = fig.add_subplot(gs[2,:], sharex=position_plot) # entropy vs n
         line_entr, = entropy_plot.plot([], [], color="C0", alpha=0.7)
         marker_entr, = entropy_plot.plot([], [], ".", color="C0", label=rf"$H[X_{{_{{n}}}}]$")
-        entropy_plot.axhline(np.log(len(eigenvalues)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$\ln({len(eigenvalues)})$")  # Boltzmann Entropy supremum
+        entropy_plot.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$\ln({len(centers) + 1})$")  # Boltzmann Entropy supremum
 
         entropy_plot.set_title(r"$H[X_{{_{{n}}}}]$ vs $n \to N$")
         entropy_plot.set_ylabel(r"$H[X_{{_{{n}}}}]$")
-        entropy_plot.set_ylim(0, np.log(len(eigenvalues))+0.1) # default before any data — positive only
+        entropy_plot.set_ylim(0, np.log(len(centers))+0.1) # default before any data — positive only
         entropy_plot.tick_params(labelbottom=False)   # hide x tick labels
         entropy_plot.legend(loc='upper left')
 
@@ -166,7 +164,7 @@ class BoundWalk:
         kld_plot.set_title(r"$D_{{KL}}(\mathbb{P}||U)$ vs $n \to N$")
         kld_plot.set_ylabel(r"$D_{{KL}}(\mathbb{P}||U)$")
         kld_plot.set_xlabel(r"$n \to N$")
-        kld_plot.set_ylim(0, np.log(len(eigenvalues)) + 0.1)      # default before any data — positive only 
+        kld_plot.set_ylim(0, np.log(len(centers)) + 0.1)      # default before any data — positive only 
         kld_plot.legend(loc='upper left')
 
         #=========================================================================================== # CHANGE name to something better!
@@ -190,17 +188,10 @@ class BoundWalk:
                 bar.set_height(height)
 
             histogram.xaxis.set_major_locator(AutoLocator())
-            max_prob = probs.max()
-            if max_prob > 0: # dynamic y-axis scaling based on max prob at current frame
-                histogram.set_ylim(0, max_prob * 1.1)
-                yticks = np.linspace(0, max_prob, 5)
-                histogram.set_yticks(yticks)
-                histogram.set_yticklabels([f"{y:.3f}" for y in yticks])
-
-            else: # initial frame with delta distribution, max_prob is 1, set static y-axis
-                histogram.set_ylim(0, 1.05)
-                histogram.set_yticks([0.0, 0.25, 0.5, 0.75, 1.00])
-                histogram.set_yticklabels(["0.000", "0.250", "0.500", "0.750", "1.000"])
+            histogram.set_ylim(0, probs.max() * 1.05)
+            yticks = np.linspace(0, probs.max(), 5)
+            histogram.set_yticks(yticks)
+            histogram.set_yticklabels([f"{y:.3f}" for y in yticks])
 
             #----------------------- position_plot ---------------------- !!! 2nd row: Position vs N plot !!!
             steps = self.data['n ≤ N'].iloc[:frame+1] # steps from 0 to current frame n, for x-axis of position plot 
@@ -233,7 +224,7 @@ class BoundWalk:
         plt.subplots_adjust(left=0.075, bottom=0.075, hspace=0.4)  # for adjusting margins
         plt.close(fig) # ensure no static plots are displayed
         anim = FuncAnimation(fig, _animate, frames=len(self.data),
-                interval=self.fps, # delay between frames in milliseconds 
+                interval=self.ms_between_frames, # delay between frames in milliseconds 
                 blit=False  # blitting doesn’t play well with clearing/replotting
             )
 

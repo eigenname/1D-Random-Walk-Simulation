@@ -37,34 +37,20 @@ def create_displacements(seed: int, total_steps: int, step_size: (float | int) |
                 return RNG.choice([-1, 1], size=total_steps) * magnitudes 
             
             case 'normal': # generate random magnitudes from normal distribution
-                magnitudes = RNG.normal(step_size['params'][0], step_size['params'][1], size=total_steps) # random magnitudes from normal distribution
-                return RNG.choice([-1, 1], size=total_steps) * magnitudes 
+                return RNG.normal(step_size['params'][0], step_size['params'][1], size=total_steps) # random magnitudes from normal distribution
 
 # For determining bin width for histogram and domain definition, based on step_size parameters, whether to be fixed or randomly sampled
 def get_bin_width(step_size: (float | int) | dict) -> float:
     if isinstance (step_size, (float, int)): # if step_size is float or int, is fixed
         return step_size
-    
+        
     else: # if step_size is dict, step_size is to be randomly sampled
         match step_size['type']:
             case 'uniform': # from uniform distribution, derive bin width from lower bound of its support
                 return step_size['bin_width']
             case 'normal': # from a standard normal distribution, derive bin width from its standard deviation
                 return step_size['bin_width'] # if step_size is a distribution, derive bin width from standard deviation!
-
-# For determining delta arg for domain = np.arange(...) for fixed step_size or uniformly random sampled step_size 
-def define_domain(left_bound: float, right_bound: float, step_size: (float | int) | dict) -> np.ndarray:
-    if isinstance (step_size, (float, int)): # if step_size is float or int, is fixed
-        bin_width = step_size
-    else: # if step_size is dict, step_size is to be randomly sampled
-        match step_size['type']:
-            case 'uniform': # from uniform distribution, derive bin width from lower bound of its support
-                bin_width = step_size['bin_width']
-            case 'normal': # from a standard normal distribution, derive bin width from its standard deviation
-                bin_width = step_size['bin_width'] # if step_size is a distribution, derive bin width from standard deviation!
-
-    return np.arange(left_bound, right_bound + 1e-8, bin_width)
-
+                
 # For reflecting raw next position back into the defined boundaries, accounts for large step_sizes (beyond right_bound - left_bound)
 def reflect(pos: float, left_bound: float, right_bound: float) -> float:
     while pos < left_bound or pos > right_bound:
