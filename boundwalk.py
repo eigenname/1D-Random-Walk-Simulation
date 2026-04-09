@@ -1,9 +1,11 @@
+import importlib, bw_tools
+importlib.reload(bw_tools) 
 from bw_tools import ( # import all helper functions from bw_tools.py
     find_rounding_precision,
-    create_displacements,
+    generate_noise,
     pad_to_domain,
     reflect,
-    get_bin_width
+    get_bin_width,
 )
 
 import numpy as np # initially, to account for seed reproducibility
@@ -19,22 +21,22 @@ from matplotlib.ticker import AutoLocator, MaxNLocator # for integer ticks/label
 
 from dataclasses import dataclass # for cleaner class definition
 from collections import defaultdict # dict that keeps occurrence count for each position bin
-from scipy.stats import entropy # actually KLD method
+from scipy.stats import entropy as KL_div # actually KLD method
 from IPython.display import HTML, display # to display anim inline
 
 
 @dataclass(kw_only=True) # use keyword-only arguments for clarity and to avoid confusion when instantiating the class with many parameters
 class BoundWalk:
-    total_steps: int # number of steps in the random walk, denoted as N
-    step_size: tuple | (float | int) # step size can be randomly sampled (uniform or standard normal) or fixed (float or int)
+    total_steps: int # number of steps in the random walk
+    step_size: tuple | float # size of step: can be randomly sampled (uniform or standard normal) or fixed (float)
     time_scale: float = 1.0 # default time scale for the walk
     boundaries: tuple = (0, 1) # default boundaries for the walk
 
-    mass: float = 1.0 # default mass of the particle
-    initial_position: float = 0 # default initial position at 0
-    initial_velocity: float = 0 # default initial velocity at 0
+    # Boltzmann constant and mass are assumed to be 1
+    initial_position: float = 0 
+    initial_velocity: float = 0 
 
-    seed: int = None # optional seed for reproducibility, default is 'None'.
+    seed: int = None # optional seed for reproducibility
     ms_between_frames: int = 500 # milliseconds between frames in animation, default is 500ms (0.5s)
     #__________________________________________________________________________________________________________________________
     def __post_init__(self): 
@@ -42,74 +44,70 @@ class BoundWalk:
     #__________________________________________________________________________________________________________________________
     def __simulate__(self): # generates data for random walk, simulated based on given parameters
         Δt = self.time_scale
-        m = self.mass
-        X0 = self.initial_position
-        V0 = self.initial_velocity
-        P0 = m * V0 / Δt 
-        E0 = P0**2 / (2*m)
+        init_position = self.initial_position
+        init_velocity = self.initial_velocity
+        init_momentum = init_velocity / Δt 
+        init_energy = init_momentum**2 / 2
         seed = self.seed
         N = self.total_steps
-        ΔX = self.step_size
-        rounding_precision = find_rounding_precision(ΔX) # determine rounding precision based on step_size, whether to be fixed or randomly sampled
-        self.displacements = create_displacements(seed, N, ΔX, Δt) # create displacements based on given parameters, whether fixed or randomly sampled
+        step_size = self.step_size
+        rounding_precision = find_rounding_precision(step_size) # determine rounding precision based on step_size, whether to be fixed or randomly sampled
+        self.white_noise = generate_noise(seed, N, step_size, Δt) # generate white noise displacements based on given parameters
         left_bound, right_bound = self.boundaries
 
-        Positions = [X0] # initialize positions list with initial position X0
-        Velocities = [V0] # initialize velocities list with initial velocity V0
-        Momenta = [P0] # initialize momenta list with initial momentum P0
-        Energies = [E0] # initialize energies list with initial energy E0
-        counts = defaultdict(int) # dict that keeps count of probs per outcome
-        Possible_Outcomes_positions = [np.array([X0])]   # particle is at X0 with certainty
-        Probabilities_positions     = [np.array([1.0])]        # p(X0) = 1
-        Entropies         = [0.0]                    # H = 0, certain state
-        KLDs             = [0.0]                    # KLD = 0, nothing has diverged yet
+        X = [init_position] 
+        V = [init_velocity] 
+        P = [init_momentum] 
+        E = [init_energy] 
+        counts_position = defaultdict(int) # dict that keeps count of probs per outcome
+        Outcomes_positions = [np.array([init_position])] # particle is at X_0 with certainty
+        Prob_positions     = [np.array([1.0])] # Prob(X_0) = 1 for n=0
+        S_G = [0] # initialize Gibbs entropy @ 0 for n=0
+        KLD = [0] # initialize D_KL(P||U)  @ 0 for n=0, nothing has diverged yet
  
-        self.bin_width = get_bin_width(ΔX) # determine bin width for histogram and domain definition, based on step_size parameters, whether to be fixed or randomly sampled 
-        self.domain = np.arange(left_bound, right_bound + 1e-8, self.bin_width) 
-        uniform_probs = np.ones(len(self.domain)) / len(self.domain) # needed for computing KLD
+        self.bin_width = get_bin_width(step_size) # determine bin width for histogram and domain definition, based on step_size argument
+        self.domain = np.arange(left_bound, right_bound + 1e-8, self.bin_width) # define domain for histogram and D_KL(P||U)  computation
+        uniform_probs = np.ones(len(self.domain)) / len(self.domain) # true distribution for computing D_KL(P||U) 
 
-        Displacements = [0] # to record displacements after corrections within reflective bounds [0,1]
-        for step in self.displacements:
-            original_step = Positions[-1] + step
-            next_position = reflect(original_step, left_bound, right_bound)   
-            next_position = round(next_position, rounding_precision)
-            step = round(next_position - Positions[-1], rounding_precision)  
-            Positions.append(next_position) 
-            Displacements.append(step) # compute actual displacement after reflection, then append
-            Velocities.append(step / np.sqrt(Δt)) # compute and append next velocity
-            Momenta.append(m * Velocities[-1]) # compute and append next momentum
-            Energies.append(round(Momenta[-1]**2 / (2*m), rounding_precision) if isinstance(ΔX, dict) \
-                            else round(Momenta[-1]**2 / (2*m), 7)) # compute and append next energy, apply rounding when sampling
+        ΔX = [0] # initialize displacement at n=0 as 0
+        for step in self.white_noise:
+            original_step = X[-1] + step # take a step
+            next_position = round(reflect(original_step, left_bound, right_bound), rounding_precision) # reflect back into boundaries if step goes beyond, then round
+            step = round(next_position - X[-1], rounding_precision) # compute actual displacement after reflection, then round
+            
+            X.append(next_position) # append actual next position 
+            ΔX.append(step) # append actual step/displacement
+            V.append(round(step / np.sqrt(Δt), rounding_precision)) # compute and append next velocity
+            P.append(V[-1]) # append next momentum, account for given mass
+            E.append(P[-1]**2 / 2) # UNDER FURTHER CONSIDERATION (NOT SURE HOW TO INCORPORATE INTO ANIMATING), iffy for fixed step size
 
-            counts[next_position] += 1
-            total = sum(counts.values())
-            outcomes = np.array(list(counts.keys()))
-            probabilities = np.array([counts[o] / total for o in outcomes])
-            H = -(probabilities * np.log(probabilities)).sum() # compute entropy using the probabilities of the outcomes at this step
-            Possible_Outcomes_positions.append(outcomes)
-            Probabilities_positions.append(probabilities)
-            Entropies.append(H)
+            counts_position[next_position] += 1 # update count for actual next position's bin
+            total_positions = sum(counts_position.values()) # total count of all position outcomes so far, for normalizing probabilities
+            unique_positions = np.array(list(counts_position.keys())) # unique position outcomes so far
+            probabilities = np.array([counts_position[position] / total_positions for position in unique_positions]) # probabilities for each unique position outcome so far
+            Outcomes_positions.append(unique_positions) # 
+            Prob_positions.append(probabilities)
+            S_G.append(-(probabilities * np.log(probabilities)).sum()) # compute Gibbs entropy using the probabilities of the outcomes at this step, then append to list
 
-            empirical_probs = pad_to_domain(outcomes, probabilities, self.domain, left_bound, self.bin_width) # align the outcomes and probabilities from each step with the defined domain, to get empirical distribution in the same support as uniform distribution for KLD computation
-            kld = entropy(empirical_probs, uniform_probs) # compute KLD
-            KLDs.append(kld)
+            empirical_probs = pad_to_domain(unique_positions, probabilities, self.domain, left_bound, self.bin_width) # align the outcomes and probabilities from each step with the defined domain, to get empirical distribution in the same support as uniform distribution for KLD computation
+            KLD.append(KL_div(empirical_probs, uniform_probs)) # compute then append KLD for this step
 
         self.data = pd.DataFrame({ # tabular data of simulation
             "t": np.arange(N+1) * Δt,
             "n ≤ N": np.arange(N+1),
-            "nth Position": Positions,
-            "nth Displacement": Displacements,
-            "nth Velocity": Velocities,
-            "nth Momentum": Momenta,
-            "nth Energy": Energies,
-            "nth Possible Positions": Possible_Outcomes_positions,
-            "nth Position Probabilities": Probabilities_positions,
-            "nth Entropy": Entropies,
-            "nth KLD": KLDs
+            "nth Position": X,
+            "nth Displacement": ΔX,
+            "nth Velocity": V,
+            "nth Momentum": P,
+            "nth Energy": E,
+            "nth Possible Positions": Outcomes_positions,
+            "nth Position Probabilities": Prob_positions,
+            "nth Entropy": S_G,
+            "nth KLD": KLD
         })
     #__________________________________________________________________________________________________________________________
     def __visualize__(self): 
-        X0 = self.initial_position
+        init_position = self.initial_position
         N = self.total_steps
         ΔX = self.step_size
         left_bound, right_bound = self.boundaries
@@ -117,7 +115,7 @@ class BoundWalk:
         centers = self.domain 
         edges = np.append(centers - bin_width/2, centers[-1] + bin_width/2)
 
-        fig = plt.figure(figsize=(12,8))
+        fig = plt.figure(figsize=(12,9))
         gs = GridSpec(4, 2, height_ratios=[1,1,1,1], hspace=0.6)
 
         #----------------------- particle_animation ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!
@@ -132,12 +130,12 @@ class BoundWalk:
                 case 'uniform':
                     step_info = rf"|ΔX| \sim \mathcal{{U}}[{ΔX['bounds'][0]}, {ΔX['bounds'][1]}]"
                 case 'normal':
-                    step_info = rf"|ΔX| \sim \mathcal{{N}}({ΔX['params'][0]}, {ΔX['params'][1]})"
+                    step_info = rf"|ΔX| \sim \mathcal{{N}}({ΔX['params'][0]}, {ΔX['params'][1]**2})"
         
-        particle_animation.set_title(rf"$\mathcal{{BW}}(N={{{N}}}, {step_info}; X_0 \equiv {{{X0}}}): \ x_{{_{{t}}}} \in \mathbb{{R}}_{{_{{{[left_bound, right_bound]}}}}}$")
+        particle_animation.set_title(rf"$\mathcal{{BW}}: \ N \equiv {{{N}}}, {step_info}, X_0 \equiv {{{init_position}}}, \ x_{{_{{t}}}} \smallin \mathbb{{R}}_{{_{{{[left_bound, right_bound]}}}}}$")
 
         particle_animation.get_yaxis().set_visible(False) # don't need to see yaxis ticks/labels
-        particle_animation.set_xlabel(rf"$X_{{_{{t}}}} = x_{{_{{t}}}} \in \mathbb{{R}}_{{_{{{[left_bound, right_bound]}}}}}$")
+        particle_animation.set_xlabel(rf"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
         particle_animation.set_ylim(-0.05, 0.1) # limit yaxis dimensions
         particle_animation.set_xlim(left_bound, right_bound) # walk will be confined within (a,b)
         particle_animation.legend(loc='upper left')
@@ -147,9 +145,9 @@ class BoundWalk:
         bars = histogram.bar(centers, np.zeros_like(centers), width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
         histogram.axhline(1/len(centers), color="red", linestyle="--", linewidth=0.8, label=rf"$U[{left_bound},{right_bound}]$")
 
-        histogram.set_title(r"$\mathbb{P}(X_{{_{{t}}}} = x_{{_{{t}}}})$ Histogram")
-        histogram.set_ylabel(r"$\mathbb{P} \in \mathbb{{R}}_{{_{[0, 1]}}}$ ")
-        histogram.set_xlabel(rf"$X_{{_{{t}}}} = x_{{_{{t}}}} \in \mathbb{{R}}_{{_{{{[left_bound, right_bound]}}}}}$")
+        histogram.set_title(r"$\hat\mathbb{P}(X_{{_{{t}}}} = x_{{_{{t}}}})$ Histogram")
+        histogram.set_ylabel(r"$\hat\mathbb{P} \smallin \mathbb{{R}}_{{_{[0, 1]}}}$ ")
+        histogram.set_xlabel(rf"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
         histogram.set_xlim(left_bound, right_bound)
         histogram.legend(loc='upper right') # enables label for U(a,b) PDF, fix to upper right
 
@@ -158,7 +156,7 @@ class BoundWalk:
         line_plot, = position_plot.plot([], [], color="C0", alpha=0.7)
         marker_plot, = position_plot.plot([], [], ".", color="C0", label=r"$x_{{_{{t}}}}$")
 
-        position_plot.set_title(r"$X_{{_{{t}}}} = x_{{_{{t}}}}$ vs $t \to N$")
+        position_plot.set_title(r"$X_{{_{{t}}}} = x_{{_{{t}}}}$ vs $t \to \infty$")
         position_plot.set_ylabel(r"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
         position_plot.set_ylim(left_bound, right_bound) # limit yaxis dimensions to boundaries
         position_plot.set_xlim(0, 10)    # add this — propagates to ax_entr and ax_norm via sharex
@@ -168,27 +166,27 @@ class BoundWalk:
         #----------------------- entropy_plot ---------------------- !!! 3rd row: Entropy vs N Plot !!!
         entropy_plot = fig.add_subplot(gs[2,:], sharex=position_plot) # entropy vs n
         line_entr, = entropy_plot.plot([], [], color="C0", alpha=0.7)
-        marker_entr, = entropy_plot.plot([], [], ".", color="C0", label=rf"$H[X_{{_{{t}}}}]$")
-        entropy_plot.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$\ln({len(centers)})$")  # Boltzmann Entropy supremum
+        marker_entr, = entropy_plot.plot([], [], ".", color="C0", label=rf"$S_{{G}}[X_{{_{{t}}}}]$")
+        entropy_plot.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$S_{{_{{B}}}} = \ln({len(centers)})$")  # Boltzmann Entropy supremum
 
-        entropy_plot.set_title(r"$H[X_{{_{{t}}}}]$ vs $t \to N$")
-        entropy_plot.set_ylabel(r"$H[X_{{_{{t}}}}]$")
-        entropy_plot.set_ylim(0, np.log(len(centers))+0.1) # default before any data — positive only
+        entropy_plot.set_title(r"$S_{_{G}}[X_{{_{{t}}}}]$ vs $t \to \infty$")
+        entropy_plot.set_ylabel(r"$S_{_{G}}[X_{{_{{t}}}}]$")
+        entropy_plot.set_ylim(0, np.log(len(centers)) + 0.5) # default before any data — positive only
         entropy_plot.tick_params(labelbottom=False)   # hide x tick labels
         entropy_plot.legend(loc='upper left')
 
         #----------------------- kld_plot ---------------------- !!! 4th row: KLD vs N Plot !!!
         kld_plot = fig.add_subplot(gs[3,:], sharex=position_plot) # KLD vs N
         line_kld, = kld_plot.plot([], [], color="C0", alpha=0.7)
-        marker_kld, = kld_plot.plot([], [], ".", color="C0", label=rf"$D_{{KL}}(\mathbb{{P}}||U)$")
+        marker_kld, = kld_plot.plot([], [], ".", color="C0", label=rf"$D_{{KL}}(\hat\mathbb{{P}}||U)$")
 
-        kld_plot.set_title(r"$D_{{KL}}(\mathbb{P}||U)$ vs $t \to \infty$")
-        kld_plot.set_ylabel(r"$D_{{KL}}(\mathbb{P}||U)$")
+        kld_plot.set_title(r"$D_{{KL}}(\hat\mathbb{P}||U)$ vs $t \to \infty$")
+        kld_plot.set_ylabel(r"$D_{{KL}}(\hat\mathbb{P}||U)$")
         kld_plot.set_xlabel(r"$t \to \infty$")
-        kld_plot.set_ylim(0, np.log(len(centers)) + 0.1)      # default before any data — positive only 
+        kld_plot.set_ylim(0, np.log(len(centers)) + 0.5)      # default before any data — positive only 
         kld_plot.legend(loc='upper left')
 
-        #=========================================================================================== # CHANGE name to something better!
+        #=========================================================================================== 
         def _animate(frame): # i within [0, len(walk.data)]
             Δt = self.time_scale
             #----------------------- particle_animation ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!

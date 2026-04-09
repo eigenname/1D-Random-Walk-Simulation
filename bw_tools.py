@@ -11,10 +11,10 @@ def Normal(mean: float, std_dev: float, bin_width: float) -> dict: # function to
 
 
 # For determining rounding precision based on step_size, whether to be fixed or randomly sampled
-def find_rounding_precision(step_size: (float | int) | dict) -> int:
-    if isinstance (step_size, (float, int)): # if step_size is float or int, is fixed
-        return max(0, -int(floor(log10(step_size))))
-    
+def find_rounding_precision(step_size: float | dict) -> int:
+    if isinstance (step_size, float): # if step_size is float or int, is fixed
+        return max(0, -int(floor(log10(step_size)))) 
+
     else: # if step_size is dict, step_size is to be randomly sampled
         match step_size['type']:
             case 'uniform': # from uniform distribution, derive rounding precision from lower bound of its support
@@ -24,10 +24,10 @@ def find_rounding_precision(step_size: (float | int) | dict) -> int:
 
 
 # For creating displacements based on given parameters, whether step_size is fixed or randomly sampled
-def create_displacements(seed: int, total_steps: int, step_size: (float | int) | dict, time_scale: float) -> np.ndarray:
+def generate_noise(seed: int, total_steps: int, step_size: float | dict, time_scale: float) -> np.ndarray:
     RNG = np.random.default_rng(seed) # initialize seed, if given
 
-    if isinstance (step_size, (float, int)): # if step_size is float or int, is fixed
+    if isinstance (step_size, float): # if step_size is float or int, is fixed
         return RNG.choice([-1, 1], size=total_steps) * step_size * sqrt(time_scale) # random choice of left or right, multiplied by fixed step_size
     
     else: # if step_size is dict, step_size is to be randomly sampled
@@ -40,8 +40,8 @@ def create_displacements(seed: int, total_steps: int, step_size: (float | int) |
                 return RNG.normal(step_size['params'][0], step_size['params'][1], size=total_steps) * sqrt(time_scale) # random magnitudes from normal distribution
 
 # For determining bin width for histogram and domain definition, based on step_size parameters, whether to be fixed or randomly sampled
-def get_bin_width(step_size: (float | int) | dict) -> float:
-    if isinstance (step_size, (float, int)): # if step_size is float or int, is fixed
+def get_bin_width(step_size: float | dict) -> float:
+    if isinstance (step_size, float): # if step_size is float or int, is fixed
         return step_size
         
     else: # if step_size is dict, step_size is to be randomly sampled
@@ -72,5 +72,13 @@ def pad_to_domain(outcomes: np.ndarray, probs: np.ndarray, domain: np.ndarray, l
     total = aligned.sum()  # defensive renormalization
     return aligned / total if total > 0 else aligned
 
-
-# 
+# For specifically rounding energy values 
+def round_energy(step_size: float) -> int:
+    if np.isclose(step_size, 0.1):
+        return 3
+    elif np.isclose(step_size, 0.01):
+        return 5
+    elif np.isclose(step_size, 0.001): # rarely used but still
+        return 7
+    else:
+        raise ValueError(f"Unsupported step_size: {step_size}")
