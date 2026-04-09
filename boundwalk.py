@@ -59,8 +59,8 @@ class BoundWalk:
         Momenta = [P0] # initialize momenta list with initial momentum P0
         Energies = [E0] # initialize energies list with initial energy E0
         counts = defaultdict(int) # dict that keeps count of probs per outcome
-        Possible_Outcomes = [np.array([X0])]   # particle is at X0 with certainty
-        Probabilities     = [np.array([1.0])]        # p(X0) = 1
+        Possible_Outcomes_positions = [np.array([X0])]   # particle is at X0 with certainty
+        Probabilities_positions     = [np.array([1.0])]        # p(X0) = 1
         Entropies         = [0.0]                    # H = 0, certain state
         KLDs             = [0.0]                    # KLD = 0, nothing has diverged yet
  
@@ -75,18 +75,19 @@ class BoundWalk:
             next_position = round(next_position, rounding_precision)
             step = round(next_position - Positions[-1], rounding_precision)  
             Positions.append(next_position) 
-            Displacements.append(step) # compute actual displacement after refleciton, then append
-            Velocities.append(step / Δt) # compute and append next velocity
+            Displacements.append(step) # compute actual displacement after reflection, then append
+            Velocities.append(step / np.sqrt(Δt)) # compute and append next velocity
             Momenta.append(m * Velocities[-1]) # compute and append next momentum
-            Energies.append(round(Momenta[-1]**2 / (2*m), rounding_precision) if isinstance(ΔX, dict) else Momenta[-1]**2 / (2*m)) # compute and append next energy, apply rounding when sampling
+            Energies.append(round(Momenta[-1]**2 / (2*m), rounding_precision) if isinstance(ΔX, dict) \
+                            else round(Momenta[-1]**2 / (2*m), 7)) # compute and append next energy, apply rounding when sampling
 
             counts[next_position] += 1
             total = sum(counts.values())
             outcomes = np.array(list(counts.keys()))
             probabilities = np.array([counts[o] / total for o in outcomes])
             H = -(probabilities * np.log(probabilities)).sum() # compute entropy using the probabilities of the outcomes at this step
-            Possible_Outcomes.append(outcomes)
-            Probabilities.append(probabilities)
+            Possible_Outcomes_positions.append(outcomes)
+            Probabilities_positions.append(probabilities)
             Entropies.append(H)
 
             empirical_probs = pad_to_domain(outcomes, probabilities, self.domain, left_bound, self.bin_width) # align the outcomes and probabilities from each step with the defined domain, to get empirical distribution in the same support as uniform distribution for KLD computation
@@ -101,8 +102,8 @@ class BoundWalk:
             "nth Velocity": Velocities,
             "nth Momentum": Momenta,
             "nth Energy": Energies,
-            "nth Possible Outcomes": Possible_Outcomes,
-            "nth Probabilities": Probabilities,
+            "nth Possible Positions": Possible_Outcomes_positions,
+            "nth Position Probabilities": Probabilities_positions,
             "nth Entropy": Entropies,
             "nth KLD": KLDs
         })
@@ -168,7 +169,7 @@ class BoundWalk:
         entropy_plot = fig.add_subplot(gs[2,:], sharex=position_plot) # entropy vs n
         line_entr, = entropy_plot.plot([], [], color="C0", alpha=0.7)
         marker_entr, = entropy_plot.plot([], [], ".", color="C0", label=rf"$H[X_{{_{{t}}}}]$")
-        entropy_plot.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$\ln({len(centers) + 1})$")  # Boltzmann Entropy supremum
+        entropy_plot.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$\ln({len(centers)})$")  # Boltzmann Entropy supremum
 
         entropy_plot.set_title(r"$H[X_{{_{{t}}}}]$ vs $t \to N$")
         entropy_plot.set_ylabel(r"$H[X_{{_{{t}}}}]$")

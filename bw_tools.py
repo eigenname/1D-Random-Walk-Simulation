@@ -71,3 +71,6 @@ def pad_to_domain(outcomes: np.ndarray, probs: np.ndarray, domain: np.ndarray, l
 
     total = aligned.sum()  # defensive renormalization
     return aligned / total if total > 0 else aligned
+
+
+# 
