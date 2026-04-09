@@ -1,5 +1,24 @@
+# BoundWalk — 1D Bounded Random Walk Simulator
+# Python >= 3.13 required for modern type hints (e.g., float | int)
+
+# Core numerical computing
 numpy>=1.26.0
+
+# Data structures and analysis
 pandas>=2.1.0
+
+# Visualization
 matplotlib>=3.8.0
+
+# Statistical tools (for KL divergence computation)
 scipy>=1.11.0
-ipython>=8.15.0
+
+# Jupyter notebook interface (optional but recommended)
+jupyter>=1.0.0
+notebook>=7.0.0
+
+# Optional: faster computation (future)
+# numba>=0.58.0
+
+# Optional: video export (future)
+# imageio-ffmpeg>=0.4.9
