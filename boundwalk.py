@@ -14,8 +14,9 @@ import pandas as pd # for storing generated data in a structured format
 import matplotlib.pyplot as plt # initially, to enable file format for displaying anim inline
 from matplotlib.gridspec import GridSpec # to encapsulate all plots proportionally
 from matplotlib import rcParams # for runtime configuration of animation rendering
-rcParams["animation.html"] = "jshtml" # render animation as interactive HTML widget inline
 rcParams["animation.embed_limit"] = 50_000_000 # increases animation file size to 50 MB
+from matplotlib import rc 
+rc('animation', html='jshtml') # 
 from matplotlib.animation import FuncAnimation # for creating the animation
 from matplotlib.ticker import AutoLocator, MaxNLocator # for integer ticks/labels for entropy vs n plot
 
@@ -38,11 +39,15 @@ class BoundWalk:
 
     seed: int = None # optional seed for reproducibility
     ms_between_frames: int = 500 # milliseconds between frames in animation, default is 500ms (0.5s)
+    verbose: bool = True # show progress during simulation, default is True
     #__________________________________________________________________________________________________________________________
     def __post_init__(self): 
         self.__simulate__()
     #__________________________________________________________________________________________________________________________
     def __simulate__(self): # generates data for random walk, simulated based on given parameters
+        if self.verbose:
+            print(f"[BoundWalk] Initializing simulation...")
+
         Δt = self.time_scale
         init_position = self.initial_position
         init_velocity = self.initial_velocity
@@ -52,6 +57,9 @@ class BoundWalk:
         N = self.total_steps
         step_size = self.step_size
         rounding_precision = find_rounding_precision(step_size) # determine rounding precision based on step_size, whether to be fixed or randomly sampled
+
+        if self.verbose:
+            print(f"[BoundWalk] Generating {N} noise samples...")
         self.white_noise = generate_noise(seed, N, step_size, Δt) # generate white noise displacements based on given parameters
         left_bound, right_bound = self.boundaries
 
@@ -69,8 +77,11 @@ class BoundWalk:
         self.domain = np.arange(left_bound, right_bound + 1e-8, self.bin_width) # define domain for histogram and D_KL(P||U)  computation
         uniform_probs = np.ones(len(self.domain)) / len(self.domain) # true distribution for computing D_KL(P||U) 
 
+        if self.verbose:
+            print(f"[BoundWalk] Running simulation: 0/{N} steps", end='', flush=True)
         ΔX = [0] # initialize displacement at n=0 as 0
-        for step in self.white_noise:
+        checkpoint_interval = max(1, N // 20)  # Progress tracking parameters, show progress every 5%
+        for n, step in enumerate(self.white_noise, start=1):
             original_step = X[-1] + step # take a step
             next_position = round(reflect(original_step, left_bound, right_bound), rounding_precision) # reflect back into boundaries if step goes beyond, then round
             step = round(next_position - X[-1], rounding_precision) # compute actual displacement after reflection, then round
@@ -91,7 +102,13 @@ class BoundWalk:
 
             empirical_probs = pad_to_domain(unique_positions, probabilities, self.domain, left_bound, self.bin_width) # align the outcomes and probabilities from each step with the defined domain, to get empirical distribution in the same support as uniform distribution for KLD computation
             KLD.append(KL_div(empirical_probs, uniform_probs)) # compute then append KLD for this step
+            # Update progress inline
+            if self.verbose and (n % checkpoint_interval == 0 or n == N):
+                print(f"\r[BoundWalk] Running simulation: {n}/{N} steps ({100*n//N}%)", end='', flush=True)
 
+        if self.verbose:
+            print()  # New line after progress complete
+            print(f"[BoundWalk] Building DataFrame...")
         self.data = pd.DataFrame({ # tabular data of simulation
             "t": np.arange(N+1) * Δt,
             "n ≤ N": np.arange(N+1),
@@ -105,18 +122,28 @@ class BoundWalk:
             "nth Entropy": S_G,
             "nth KLD": KLD
         })
+        if self.verbose:
+            print(f"[BoundWalk] Simulation complete. ({N} steps, {len(self.domain)} bins)\n")
     #__________________________________________________________________________________________________________________________
     def __visualize__(self): 
+        if self.verbose:
+            print("[BoundWalk] Initializing visualization...")
+
         init_position = self.initial_position
         N = self.total_steps
         ΔX = self.step_size
         left_bound, right_bound = self.boundaries
         bin_width = self.bin_width
+
         centers = self.domain 
+        if self.verbose:
+            print(f"[BoundWalk] Preparing domain ({len(centers)} bins)...")
         edges = np.append(centers - bin_width/2, centers[-1] + bin_width/2)
 
         fig = plt.figure(figsize=(12,9))
         gs = GridSpec(4, 2, height_ratios=[1,1,1,1], hspace=0.6)
+        if self.verbose:
+            print("[BoundWalk] Building figure layout...")
 
         #----------------------- particle_animation ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!
         particle_animation = fig.add_subplot(gs[0,0]) # 1d bound rand walk anim
@@ -186,11 +213,21 @@ class BoundWalk:
         kld_plot.set_ylim(0, np.log(len(centers)) + 0.5)      # default before any data — positive only 
         kld_plot.legend(loc='upper left')
 
+        if self.verbose:
+            print("[BoundWalk] Configuring plots and annotations...")
+            print(f"[BoundWalk] Creating animation ({len(self.data)} frames)...")
         #=========================================================================================== 
+        positions_np = self.data['nth Position'].to_numpy()
+        times_np = self.data['t'].to_numpy()
+        entropies_np = self.data['nth Entropy'].to_numpy()
+        klds_np = self.data['nth KLD'].to_numpy()
+        milestones = {int(len(self.data) * p) for p in [0.25, 0.5, 0.75, 1.0]}
         def _animate(frame): # i within [0, len(walk.data)]
+            if self.verbose and frame in milestones:
+                print(f"[BoundWalk] Rendering animation: {frame}/{len(self.data) } ({100*frame/len(self.data) :.0f}%)")
             Δt = self.time_scale
             #----------------------- particle_animation ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!
-            current_pos = self.data['nth Position'].iloc[frame] # find nth Position given t=frame
+            current_pos = positions_np[frame] # find nth Position given t=frame
             position.set_data([current_pos], [0]) # move position marker to (x=current_pos, y=0)
 
             #----------------------- histogram ---------------------- !!! 1st row, 2nd col: Probability Histogram !!!
@@ -200,7 +237,7 @@ class BoundWalk:
                 probs[x0_idx] = 1.0
 
             else: # compute histogram probabilities based on positions up to current frame
-                current_positions = self.data['nth Position'].iloc[1:frame+1]
+                current_positions = positions_np[:frame+1]
                 counts, _ = np.histogram(current_positions, bins=edges)
                 probs = counts / counts.sum() if counts.sum() > 0 else np.zeros_like(counts)
 
@@ -214,10 +251,10 @@ class BoundWalk:
             histogram.set_yticklabels([f"{y:.3f}" for y in yticks])
 
             #----------------------- position_plot ---------------------- !!! 2nd row: Position vs N plot !!!
-            steps = self.data['t'].iloc[:frame+1] # steps from 0 to current frame n, for x-axis of position plot 
-            positions = self.data['nth Position'].iloc[:frame+1]
+            steps = times_np[:frame+1] # steps from 0 to current frame n, for x-axis of position plot 
+            positions = positions_np[:frame+1]
             line_plot.set_data(steps, positions)
-            marker_plot.set_data([frame * Δt], [self.data['nth Position'].iloc[frame]]) # move marker to current position at this frame, adjusted by time scale
+            marker_plot.set_data([frame * Δt], [positions_np[frame]]) # move marker to current position at this frame, adjusted by time scale
 
             x_max = frame * Δt if frame > 2 else 2
             position_plot.relim()
@@ -225,26 +262,31 @@ class BoundWalk:
             position_plot.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6)) # set x ticks at multiples of Δt for shared plots
 
             #----------------------- entropy_plot ---------------------- !!! 3rd row: Entropy vs N Plot !!!
-            steps = self.data['t'].iloc[1:frame+1] # steps from 1 to current frame n, for x-axis of entropy and KLD plots
-            entropies = self.data['nth Entropy'].iloc[1:frame+1]
+            steps = times_np[1:frame+1] # steps from 1 to current frame n, for x-axis of entropy and KLD plots
+            entropies = entropies_np[1:frame+1]
             line_entr.set_data(steps, entropies)
-            marker_entr.set_data([frame * Δt], [self.data['nth Entropy'].iloc[frame]])
+            marker_entr.set_data([frame * Δt], [entropies_np[frame]])
             entropy_plot.relim()
             entropy_plot.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6))
 
             #----------------------- kld_plot ---------------------- !!! 4th row: KLD vs N Plot !!!
-            klds = self.data['nth KLD'].iloc[1:frame+1]
+            klds = klds_np[1:frame+1]
             line_kld.set_data(steps, klds)
-            marker_kld.set_data([frame * Δt], [self.data['nth KLD'].iloc[frame]])
+            marker_kld.set_data([frame * Δt], [klds_np[frame]])
             kld_plot.relim()
             kld_plot.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6))
         #===========================================================================================
         plt.subplots_adjust(left=0.075, bottom=0.075, hspace=0.4)  # for adjusting margins
         plt.close(fig) # ensure no static plots are displayed
-        anim = FuncAnimation(fig, _animate, frames=len(self.data),
+        animation = FuncAnimation(fig, _animate, frames=len(self.data),
                 interval=self.ms_between_frames, # delay between frames in milliseconds 
                 blit=False  # blitting doesn’t play well with clearing/replotting
             )
-
-        display(HTML(anim.to_jshtml())) # for interactive HTML widget inline in notebook
+        
+        if self.verbose:
+            print("[BoundWalk] Finalizing animation output...")
+        #display(HTML(animation.to_jshtml())) # for interactive HTML widget inline in notebook
+        display(animation)
+        if self.verbose:
+            print("[BoundWalk] Visualization complete.")
     #__________________________________________________________________________________________________________________________
