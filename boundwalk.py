@@ -29,13 +29,13 @@ from IPython.display import HTML, display # to display anim inline
 @dataclass(kw_only=True) # use keyword-only arguments for clarity and to avoid confusion when instantiating the class with many parameters
 class BoundWalk:
     total_steps: int # number of steps in the random walk
-    step_size: tuple | float # size of step: can be randomly sampled (uniform or standard normal) or fixed (float)
+    step_size: tuple | float = None # size of step: can be randomly sampled (uniform or standard normal) or fixed (float)
     time_scale: float = 1.0 # default time scale for the walk
     boundaries: tuple = (0, 1) # default boundaries for the walk
 
-    # Boltzmann constant and mass are assumed to be 1
     initial_position: float = 0 
-    initial_velocity: float = 0 
+    initial_momentum: float = 0 # mass is 1, for nats
+    initial_energy: float = None # if set, overrides step_size
 
     seed: int = None # optional seed for reproducibility
     ms_between_frames: int = 500 # milliseconds between frames in animation, default is 500ms (0.5s)
@@ -50,21 +50,27 @@ class BoundWalk:
 
         Δt = self.time_scale
         init_position = self.initial_position
-        init_velocity = self.initial_velocity
-        init_momentum = init_velocity / Δt 
-        init_energy = init_momentum**2 / 2
+        init_momentum = self.initial_momentum # mass is 1 for 'nats'
         seed = self.seed
         N = self.total_steps
-        step_size = self.step_size
-        rounding_precision = find_rounding_precision(step_size) # determine rounding precision based on step_size, whether to be fixed or randomly sampled
+
+        if self.initial_energy is not None and self.step_size is None: # when deriving step_size from E₀
+            step_size = round(np.sqrt(2 * self.initial_energy) * Δt, 10)  
+            self.step_size = step_size
+        elif self.step_size is not None: # when step_size is fixed
+            step_size = self.step_size
+        else: # step_size or initial_energy has to be initialized
+            raise ValueError("Either step_size or initial_energy must be provided.")
+
+        rounding_precision = find_rounding_precision(step_size)
+        init_energy = init_momentum**2 / 2  # derive from momentum, not initial_energy param directly
 
         if self.verbose:
             print(f"[BoundWalk] Generating {N} noise samples...")
-        self.white_noise = generate_noise(seed, N, step_size, Δt) # generate white noise displacements based on given parameters
+        self.white_noise = generate_noise(seed, N, step_size) # generate white noise displacements based on given parameters
         left_bound, right_bound = self.boundaries
 
         X = [init_position] 
-        V = [init_velocity] 
         P = [init_momentum] 
         E = [init_energy] 
         counts_position = defaultdict(int) # dict that keeps count of probs per outcome
@@ -88,9 +94,8 @@ class BoundWalk:
             
             X.append(next_position) # append actual next position 
             ΔX.append(step) # append actual step/displacement
-            V.append(round(step / np.sqrt(Δt), rounding_precision)) # compute and append next velocity
-            P.append(V[-1]) # append next momentum, account for given mass
-            E.append(P[-1]**2 / 2) # UNDER FURTHER CONSIDERATION (NOT SURE HOW TO INCORPORATE INTO ANIMATING), iffy for fixed step size
+            P.append(round(ΔX[-1] / Δt, max(rounding_precision+6, 10))) # compute and append next momentum
+            E.append(round(P[-1]**2 / 2, max(rounding_precision+6, 10))) 
 
             counts_position[next_position] += 1 # update count for actual next position's bin
             total_positions = sum(counts_position.values()) # total count of all position outcomes so far, for normalizing probabilities
@@ -114,7 +119,6 @@ class BoundWalk:
             "n ≤ N": np.arange(N+1),
             "nth Position": X,
             "nth Displacement": ΔX,
-            "nth Velocity": V,
             "nth Momentum": P,
             "nth Energy": E,
             "nth Possible Positions": Outcomes_positions,
@@ -172,7 +176,7 @@ class BoundWalk:
         bars = histogram.bar(centers, np.zeros_like(centers), width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
         histogram.axhline(1/len(centers), color="red", linestyle="--", linewidth=0.8, label=rf"$U[{left_bound},{right_bound}]$")
 
-        histogram.set_title(r"$\hat\mathbb{P}(X_{{_{{t}}}} = x_{{_{{t}}}})$ Histogram")
+        histogram.set_title(r"$\hat\mathbb{P}(X_{{_{{t}}}})$ Histogram")
         histogram.set_ylabel(r"$\hat\mathbb{P} \smallin \mathbb{{R}}_{{_{[0, 1]}}}$ ")
         histogram.set_xlabel(rf"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
         histogram.set_xlim(left_bound, right_bound)
@@ -183,7 +187,7 @@ class BoundWalk:
         line_plot, = position_plot.plot([], [], color="C0", alpha=0.7)
         marker_plot, = position_plot.plot([], [], ".", color="C0", label=r"$x_{{_{{t}}}}$")
 
-        position_plot.set_title(r"$X_{{_{{t}}}} = x_{{_{{t}}}}$ vs $t \to \infty$")
+        position_plot.set_title(r"$X_{{_{{t}}}}$ vs $t \to \infty$")
         position_plot.set_ylabel(r"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
         position_plot.set_ylim(left_bound, right_bound) # limit yaxis dimensions to boundaries
         position_plot.set_xlim(0, 10)    # add this — propagates to ax_entr and ax_norm via sharex
@@ -197,7 +201,7 @@ class BoundWalk:
         entropy_plot.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$S_{{_{{B}}}} = \ln({len(centers)})$")  # Boltzmann Entropy supremum
 
         entropy_plot.set_title(r"$S_{_{G}}[X_{{_{{t}}}}]$ vs $t \to \infty$")
-        entropy_plot.set_ylabel(r"$S_{_{G}}[X_{{_{{t}}}}]$")
+        entropy_plot.set_ylabel(r"$S_{_{G}}[X_{{_{{t}}}}] = -\sum \hat\mathbb{P}(X_{{_{{t}}}}) ln(\hat\mathbb{P}(X_{{_{{t}}}}))$")
         entropy_plot.set_ylim(0, np.log(len(centers)) + 0.5) # default before any data — positive only
         entropy_plot.tick_params(labelbottom=False)   # hide x tick labels
         entropy_plot.legend(loc='upper left')
@@ -232,21 +236,19 @@ class BoundWalk:
 
             #----------------------- histogram ---------------------- !!! 1st row, 2nd col: Probability Histogram !!!
             if frame == 0: # delta distribution at initial position
-                probs = np.zeros(len(bars))
-                x0_idx = round((self.initial_position - left_bound) / bin_width)
-                probs[x0_idx] = 1.0
+                probs = np.zeros(len(bars)) # initialize 0 vector of len of histogram values
+                probs[np.argmin(np.abs(self.domain - self.initial_position))] = 1.0 # determine index of initial_position and 
 
             else: # compute histogram probabilities based on positions up to current frame
-                current_positions = positions_np[:frame+1]
+                current_positions = positions_np[1:frame+1]
                 counts, _ = np.histogram(current_positions, bins=edges)
                 probs = counts / counts.sum() if counts.sum() > 0 else np.zeros_like(counts)
 
             for bar, height in zip(bars, probs): # update histogram bars
                 bar.set_height(height)
 
-            histogram.xaxis.set_major_locator(AutoLocator())
-            histogram.set_ylim(0, probs.max() * 1.05)
-            yticks = np.linspace(0, probs.max(), 5)
+            histogram.set_ylim(0, max(probs.max(), 1/len(centers) * 1.5) * 1.05) # never let ylim drop below ~1.5x the uniform line
+            yticks = np.linspace(0, max(probs.max(), 1/len(centers) * 1.5), 5)
             histogram.set_yticks(yticks)
             histogram.set_yticklabels([f"{y:.3f}" for y in yticks])
 
