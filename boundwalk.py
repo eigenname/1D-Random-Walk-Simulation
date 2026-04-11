@@ -51,28 +51,34 @@ class BoundWalk:
         Δt = self.time_scale
         init_position = self.initial_position
         init_momentum = self.initial_momentum # mass is 1 for 'nats'
+        init_energy = self.initial_energy
         seed = self.seed
         N = self.total_steps
+        left_bound, right_bound = self.boundaries
 
-        if self.initial_energy is not None and self.step_size is None: # when deriving step_size from E₀
-            step_size = round(np.sqrt(2 * self.initial_energy) * Δt, 10)  
+        if init_energy is not None and self.step_size is None:
+            raw_step = np.sqrt(2 * init_energy) * Δt
+            rounding_precision = find_rounding_precision(raw_step)
+            step_size = round(raw_step, rounding_precision)
+            # warn if rounding introduced significant error
+            if abs(step_size - raw_step) / raw_step > 1e-6:
+                print(f"[BoundWalk] Warning: step_size rounded from {raw_step:.10f} to {step_size} — consider adjusting initial_energy or time_scale.")
             self.step_size = step_size
-        elif self.step_size is not None: # when step_size is fixed
-            step_size = self.step_size
-        else: # step_size or initial_energy has to be initialized
-            raise ValueError("Either step_size or initial_energy must be provided.")
 
-        rounding_precision = find_rounding_precision(step_size)
-        init_energy = init_momentum**2 / 2  # derive from momentum, not initial_energy param directly
+        elif self.step_size is not None:
+            step_size = self.step_size
+            rounding_precision = find_rounding_precision(step_size)  # handles float or dict
+
+        else:
+            raise ValueError("Either step_size or initial_energy must be provided.")
 
         if self.verbose:
             print(f"[BoundWalk] Generating {N} noise samples...")
         self.white_noise = generate_noise(seed, N, step_size) # generate white noise displacements based on given parameters
-        left_bound, right_bound = self.boundaries
 
         X = [init_position] 
         P = [init_momentum] 
-        E = [init_energy] 
+        E = [0] # intentionally initialize as 0, separate from init_energy = self.initial_energy 
         counts_position = defaultdict(int) # dict that keeps count of probs per outcome
         Outcomes_positions = [np.array([init_position])] # particle is at X_0 with certainty
         Prob_positions     = [np.array([1.0])] # Prob(X_0) = 1 for n=0
