@@ -104,6 +104,7 @@ class BoundWalk:
 
             empirical_probs = pad_to_domain(unique_positions, probabilities, self.domain, left_bound, self.bin_width) # align the outcomes and probabilities from each step with the defined domain, to get empirical distribution in the same support as uniform distribution for KLD computation
             KLD.append(KL_div(empirical_probs, uniform_probs)) # compute then append KLD for this step
+            
             # Update progress inline
             if self.verbose and (n % checkpoint_interval == 0 or n == N):
                 print(f"\r[BoundWalk] Running simulation: {n}/{N} steps ({100*n//N}%)", end='', flush=True)

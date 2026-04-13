@@ -6,7 +6,7 @@ Provides visualization functions for different observables from BoundWalk simula
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from scipy.stats import gaussian_kde
+from scipy.stats import gaussian_kde, norm
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation
 from matplotlib.ticker import MaxNLocator
@@ -40,7 +40,6 @@ def visualize_position(walk, verbose=None):
     
     # Pre-extract numpy arrays (faster than DataFrame indexing in loop)
     positions_np = walk.data['nth Position'].to_numpy()
-    momenta_np = walk.data['nth Momentum'].to_numpy()
     times_np = walk.data['t'].to_numpy()
     entropies_np = walk.data['nth Entropy'].to_numpy()
     klds_np = walk.data['nth KLD'].to_numpy()
@@ -50,111 +49,116 @@ def visualize_position(walk, verbose=None):
     gs = GridSpec(4, 2, height_ratios=[1, 1, 1, 1], hspace=0.6)
     
     # ======================== Subplot 1: Particle Animation ========================
-    ax_particle = fig.add_subplot(gs[0, 0])
+    particle_animation = fig.add_subplot(gs[0, 0])
 
-    position_marker, = ax_particle.plot([], [], 'o', markersize=6, color='C0', label=r"$X_t$")
-    momentum_vector = ax_particle.quiver([0], [0], angles='xy', scale_units='xy', scale=1, color='red', label=r"$P_t$")
-
+    position_marker, = particle_animation.plot([], [], 'o', markersize=6, color='C0', label=r"$\vec{x}_{_{t}}$")
     step_size = walk.step_size
     if isinstance(step_size, float): # display step size info in title, whether fixed 
-        step_info = f"|ΔX| = {step_size}"
+        step_info = f"|Δ\vec{{X}}| = {step_size}"
     else: # or randomly sampled from distributions
         if step_size['type'] == 'uniform':
-            step_info = rf"|ΔX| \sim \mathcal{{U}}[{step_size['bounds'][0]}, {step_size['bounds'][1]}]"
+            step_info = rf"|Δ\vec{{X}}| \sim \mathcal{{U}}[{step_size['bounds'][0]}, {step_size['bounds'][1]}]"
         else:  # normal
-            step_info = rf"|ΔX| \sim \mathcal{{N}}({step_size['params'][0]}, {step_size['params'][1]**2})"
+            step_info = rf"|Δ\vec{{X}}| \sim \mathcal{{N}}({step_size['params'][0]}, {step_size['params'][1]**2})"
     
-    ax_particle.set_title(rf"$\mathcal{{BW}}: N={N}, {step_info}, X_0={init_position}$")
-    ax_particle.get_yaxis().set_visible(False)
-    ax_particle.set_xlabel(r"$X_t$")
-    ax_particle.set_ylim(-0.05, 0.1)
-    ax_particle.set_xlim(left_bound + momenta_np.min(), right_bound + momenta_np.max())
-    ax_particle.vlines([left_bound, right_bound], ymin=-0.05, ymax=0.1, color='black', linewidth=0.7)
-    ax_particle.legend(loc='upper left')
+    particle_animation.set_title(rf"$\mathcal{{BW}}: N={N}, {step_info}, \vec{{X}}_{{_{{0}}}}={init_position}$")
+    particle_animation.get_yaxis().set_visible(False)
+    particle_animation.set_xlabel(r"$\vec{X}_{_{t}} = \vec{x}_{_{t}}$")
+    particle_animation.set_ylim(-0.05, 0.1)
+    particle_animation.set_xlim(left_bound, right_bound)
+    particle_animation.legend(loc='upper left')
     
     # ======================== Subplot 2: Histogram ========================
-    ax_hist = fig.add_subplot(gs[0, 1])
-    x_grid = np.linspace(positions_np.min() - 0.1*positions_np.max(), positions_np.max() + 0.1*positions_np.max(), 1000)
-    kde_positions, = ax_hist.plot([], [], color="C0", linewidth=1, label=r"KDE($X_t$)")
-    ax_hist.axhline(1/(right_bound - left_bound), color="black", linestyle="--", linewidth=1, label=rf"$U[{left_bound},{right_bound}]$")
+    position_histogram = fig.add_subplot(gs[0, 1])
+    bars = position_histogram.bar(centers, np.zeros_like(centers), width=bin_width, align='center', color="C0", edgecolor="black")
+    position_histogram.axhline(1/ len(centers), color="black", linestyle="--", linewidth=1, label=rf"$U[{left_bound},{right_bound}]$")
     
-    ax_hist.set_title(r"$\rho(X_t)$ vs $X_t$")
-    ax_hist.set_ylabel(r"$\rho(X_t)$")
-    ax_hist.set_xlabel(r"$X_t$")
-    ax_hist.set_xlim(x_grid.min(), x_grid.max())
-    ax_hist.legend(loc='upper right')
+    position_histogram.set_title(r"$\mathbb{P}(\vec{X}_{_{t}})$ vs $\vec{X}_{_{t}}$")
+    position_histogram.set_ylabel(r"$\mathbb{P}(\vec{X}_{_{t}})$")
+    position_histogram.set_xlabel(r"$\vec{X}_{_{t}} = \vec{x}_{_{t}}$")
+    position_histogram.set_xlim(left_bound, right_bound)
+    position_histogram.legend(loc='upper right')
     
     # ======================== Subplot 3: Position vs Time ========================
-    ax_pos = fig.add_subplot(gs[1, :])
-    line_pos, = ax_pos.plot([], [], color="C0", alpha=0.7)
-    marker_pos, = ax_pos.plot([], [], ".", color="C0", label=r"$X_t$")
+    position_subplot = fig.add_subplot(gs[1, :])
+    position_trajectory, = position_subplot.plot([], [], color="C0")
+    trajectory_marker, = position_subplot.plot([], [], ".", color="C0", label=r"$\vec{x}_{_{t}}$")
     
-    ax_pos.set_title(r"$X_t$ vs $t$")
-    ax_pos.set_ylabel(r"$X_t$")
-    ax_pos.set_ylim(left_bound, right_bound)
-    ax_pos.set_xlim(0, 10)
-    ax_pos.tick_params(labelbottom=False)
-    ax_pos.legend(loc='upper left')
+    position_subplot.set_title(r"$\vec{X}_{_{t}}$ vs $t$")
+    position_subplot.set_ylabel(r"$\vec{X}_{_{t}} = \vec{x}_{_{t}}$")
+    position_subplot.set_ylim(left_bound, right_bound)
+    position_subplot.set_xlim(0, 10)
+    position_subplot.tick_params(labelbottom=False)
+    position_subplot.legend(loc='upper left')
     
     # ======================== Subplot 4: Entropy ========================
-    ax_entr = fig.add_subplot(gs[2, :], sharex=ax_pos)
-    line_entr, = ax_entr.plot([], [], color="C0", alpha=0.7)
-    marker_entr, = ax_entr.plot([], [], ".", color="C0", label=r"$S_G[X_t]$")
-    ax_entr.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$S_B = \ln({len(centers)})$")
+    entropy_subplot = fig.add_subplot(gs[2, :], sharex=position_subplot)
+    entropy_trajectory, = entropy_subplot.plot([], [], color="C0")
+    entropy_marker, = entropy_subplot.plot([], [], ".", color="C0", label=r"$S_{_{G}}[\vec{{x}}_t]$")
+    entropy_subplot.axhline(np.log(len(centers)), color='black', linewidth=1, linestyle='--', label=rf"$S_{{_{{B}}}} = \ln({len(centers)})$")
     
-    ax_entr.set_title(r"$S_G[X_t]$ vs $t$")
-    ax_entr.set_ylabel(r"$S_G[X_t]$")
-    ax_entr.set_ylim(0, np.log(len(centers)) + 0.5)
-    ax_entr.tick_params(labelbottom=False)
-    ax_entr.legend(loc='upper left')
+    entropy_subplot.set_title(r"$S_{_{G}}[\vec{{X}}_t]$ vs $t$")
+    entropy_subplot.set_ylabel(r"$S_{_{G}}[\vec{X}_t]$")
+    entropy_subplot.set_ylim(0, np.log(len(centers)) + 0.5)
+    entropy_subplot.tick_params(labelbottom=False)
+    entropy_subplot.legend(loc='upper left')
     
     # ======================== Subplot 5: KL Divergence ========================
-    ax_kld = fig.add_subplot(gs[3, :], sharex=ax_pos)
-    line_kld, = ax_kld.plot([], [], color="C0", alpha=0.7)
-    marker_kld, = ax_kld.plot([], [], ".", color="C0", label=r"$D_{KL}(\hat{\mathbb{P}}||U)$")
+    kld_subplot = fig.add_subplot(gs[3, :], sharex=position_subplot)
+    kld_trajectory, = kld_subplot.plot([], [], color="C0")
+    kld_marker, = kld_subplot.plot([], [], ".", color="C0", label=r"$D_{{_{{KL}}}}$")
     
-    ax_kld.set_title(r"$D_{KL}(\hat{\mathbb{P}}||U)$ vs $t$")
-    ax_kld.set_ylabel(r"$D_{KL}$")
-    ax_kld.set_xlabel(r"$t \to \infty$")
-    ax_kld.set_ylim(0, np.log(len(centers)) + 0.5)
-    ax_kld.legend(loc='upper left')
+    kld_subplot.set_title(r"$D_{{_{{KL}}}}(\mathbb{P}||U)$ vs $t$")
+    kld_subplot.set_ylabel(r"$D_{{_{{KL}}}}(\mathbb{P}||U)$")
+    kld_subplot.set_xlabel(r"$t \to \infty$")
+    kld_subplot.set_ylim(0, np.log(len(centers)) + 0.5)
+    kld_subplot.legend(loc='upper left')
     
     # ======================== Animation Function ========================
-    Δt = walk.time_scale
     milestones = {int(len(walk.data) * p) for p in [0.25, 0.5, 0.75, 1.0]} if verbose else set()
-    
     def _animate(frame):
         if frame in milestones:
             print(f"[BoundWalk] Rendering: {frame}/{len(walk.data)} ({100*frame//len(walk.data)}%)")
         
-        # Particle position and momentum
+        # Particle position
         position_marker.set_data([positions_np[frame]], [0])
-        momentum_vector.set_offsets([[positions_np[frame], 0]])
-        momentum_vector.set_UVC(momenta_np[frame], [0])
-        
-        if frame > 1:
-            kde = gaussian_kde(positions_np[1:frame+1], bw_method=0.1 * positions_np[1:frame+1].std() * len(positions_np[1:frame+1])**(-1/5))
-            x_density = kde(x_grid)
-            kde_positions.set_data(x_grid, x_density)
-            ax_hist.set_ylim(0, x_density.max() * 1.1)
+
+        # Position histogram
+        if frame == 0: # delta distribution at initial position
+            probs = np.zeros(len(bars)) # initialize 0 vector of len of histogram values
+            probs[np.argmin(np.abs(centers - init_position))] = 1.0 # determine index of initial_position and 
+
+        else: # compute histogram probabilities based on positions up to current frame
+            current_positions = positions_np[1:frame+1]
+            counts, _ = np.histogram(current_positions, bins=edges)
+            probs = counts / counts.sum() if counts.sum() > 0 else np.zeros_like(counts)
+
+        for bar, height in zip(bars, probs): # update histogram bars
+            bar.set_height(height)
+
+        position_histogram.set_ylim(0, max(probs.max(), 1/len(centers) * 1.5) * 1.05) # never let ylim drop below ~1.5x the uniform line
+        yticks = np.linspace(0, max(probs.max(), 1/len(centers) * 1.5), 5)
+        position_histogram.set_yticks(yticks)
+        position_histogram.set_yticklabels([f"{y:.3f}" for y in yticks])
 
         # Position trajectory
-        line_pos.set_data(times_np[:frame+1], positions_np[:frame+1])
-        marker_pos.set_data([times_np[frame]], [positions_np[frame]])
+        position_trajectory.set_data(times_np[:frame+1], positions_np[:frame+1])
+        trajectory_marker.set_data([times_np[frame]], [positions_np[frame]])
         
         x_max = times_np[frame] if frame > 2 else 2
-        ax_pos.set_xlim(0, x_max)
-        ax_pos.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6))
+        position_subplot.set_xlim(0, x_max)
+        position_subplot.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6))
         
         # Entropy
         if frame > 0:
-            line_entr.set_data(times_np[1:frame+1], entropies_np[1:frame+1])
-            marker_entr.set_data([times_np[frame]], [entropies_np[frame]])
+            entropy_trajectory.set_data(times_np[1:frame+1], entropies_np[1:frame+1])
+            entropy_marker.set_data([times_np[frame]], [entropies_np[frame]])
+            # ax_entr.set_ylim(entropies_np[:frame+1].min() - 0.1*entropies_np[:frame+1].max(), entropies_np[:frame+1].max() + 0.1*entropies_np[:frame+1].max())
         
         # KLD
         if frame > 0:
-            line_kld.set_data(times_np[1:frame+1], klds_np[1:frame+1])
-            marker_kld.set_data([times_np[frame]], [klds_np[frame]])
+            kld_trajectory.set_data(times_np[1:frame+1], klds_np[1:frame+1])
+            kld_marker.set_data([times_np[frame]], [klds_np[frame]])
     
     plt.subplots_adjust(left=0.075, bottom=0.075, hspace=0.4)
     plt.close(fig)
@@ -188,7 +192,7 @@ def visualize_momentum(walk, verbose=None):
         print("[BoundWalk] Building momentum animation...")
     
     # Extract data
-    N = walk.total_steps
+    positions_np = walk.data['nth Position'].to_numpy()  
     momenta_np = walk.data['nth Momentum'].to_numpy()
     times_np = walk.data['t'].to_numpy()
     
@@ -196,43 +200,47 @@ def visualize_momentum(walk, verbose=None):
     fig = plt.figure(figsize=(12, 9))
     gs = GridSpec(3, 1, height_ratios=[1, 1, 1], hspace=0.6)
     
-    # ======================== Subplot 1: Momentum Distribution ========================
-    ax_hist = fig.add_subplot(gs[0])
-    p_min, p_max = momenta_np.min(), momenta_np.max()
-    p_grid = np.linspace(momenta_np.min() + 0.1*momenta_np.min(), momenta_np.max() + 0.1*momenta_np.max(), 1000)
+    # ======================== Subplot 1: Phase Space (X, P) ========================
+    phase_space = fig.add_subplot(gs[0])
 
-    kde_momenta, = ax_hist.plot([], [], color="red", lw=1, label=r'KDE($P_t$)')
-    ax_hist.set_title(r"$\rho(P_t)$ vs $P_t$")
-    ax_hist.set_ylabel(r"$\rho(P_t)$")
-    ax_hist.set_xlabel(r"$P_t$")
-    ax_hist.set_xlim(p_grid.min(), p_grid.max())
+    x_min, x_max = positions_np.min(), positions_np.max()
+    p_min, p_max = momenta_np.min(), momenta_np.max()
+    p_grid = np.linspace(p_min + 0.1*p_min, p_max + 0.1*p_max, 1000)
+    phase_point, = phase_space.plot([], [], ".", color="C4")
+    phase_traj, = phase_space.plot([], [], color="C4", alpha=0.25)
+    
+    phase_space.hlines(y=p_min, xmin=x_min, xmax=x_max, color='C3', linewidth=0.7, linestyle='--')
+    phase_space.hlines(y=p_max, xmin=x_min, xmax=x_max, color='C3', linewidth=0.7, linestyle='--')
+    phase_space.vlines(x=x_min, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
+    phase_space.vlines(x=x_max, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
+
+    phase_space.set_title(r"Phase Space: $(\vec{X}_{_{t}}, \vec{P}_{_{t}})$")
+    phase_space.set_xlabel(r"$\vec{X}_{_{t}} = \vec{x}_{_{t}}$")
+    phase_space.set_ylabel(r"$\vec{P}_{_{t}} = \vec{p}_{_{t}}$")
+    phase_space.set_xlim(x_min - 0.1*x_max, x_max + 0.1*x_max)
 
     # ======================== Subplot 2: Momentum Trajectory ========================
-    ax_traj = fig.add_subplot(gs[1])
-    line_traj, = ax_traj.plot([], [], color="red", alpha=0.7)
-    marker_traj, = ax_traj.plot([], [], ".", color="red", label=r"$P_t$")
+    momenta_subplot = fig.add_subplot(gs[1])
 
-    ax_traj.set_title(r"$P_t$ vs $t$")
-    ax_traj.set_ylabel(r"$P_t$")
-    ax_traj.set_xlabel(r"$t \to \infty$")
-    ax_traj.set_xlim(0, 10)
-    ax_traj.legend(loc='upper left')
-    
-    # ======================== Subplot 3: Phase Space (X, P) ========================
-    ax_phase = fig.add_subplot(gs[2])
-    positions_np = walk.data['nth Position'].to_numpy()  
-    phase_point, = ax_phase.plot([], [], ".", color="purple")
-    phase_traj, = ax_phase.plot([], [], color="purple", alpha=0.25)
-    
-    ax_phase.hlines(p_max, xmin=positions_np.min(), xmax=positions_np.max(), color='red', linewidth=0.7, linestyle='--')
-    ax_phase.hlines(p_min, xmin=positions_np.min(), xmax=positions_np.max(), color='red', linewidth=0.7, linestyle='--')
-    ax_phase.vlines(positions_np.max(), ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
-    ax_phase.vlines(positions_np.min(), ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
+    momenta_trajectory, = momenta_subplot.plot([], [], color="C3", alpha=0.7)
+    momenta_marker, = momenta_subplot.plot([], [], ".", color="C3", label=r"$\vec{P}_{_{t}}$")
 
-    ax_phase.set_title(r"Phase Space: $(X_t, P_t)$")
-    ax_phase.set_xlabel(r"$X_t$")
-    ax_phase.set_ylabel(r"$P_t$")
-    ax_phase.set_xlim(positions_np.min() - 0.1*positions_np.max(), positions_np.max() + 0.1*positions_np.max())
+    momenta_subplot.set_title(r"$\vec{P}_{_{t}}$ vs $t$")
+    momenta_subplot.set_ylabel(r"$\vec{P}_{_{t}} = \vec{p}_{_{t}}$")
+    momenta_subplot.set_xlabel(r"$t \to \infty$")
+    momenta_subplot.set_xlim(0, 10)
+    momenta_subplot.legend(loc='upper left')
+    
+    # ======================== Subplot 3: Momentum Distribution ========================
+    momenta_distribution = fig.add_subplot(gs[2])
+    kde_momenta, = momenta_distribution.plot([], [], color="C3", lw=1, label=r'KDE($\vec{P}_{_{t}}$)')
+    normal_line, = momenta_distribution.plot([], [], 'k--', linewidth=1, label=rf'$\mathcal{{N}}(\mu_t, \sigma_t^2)$')
+
+    momenta_distribution.set_title(r"$\rho(\vec{P}_{_{t}})$ vs $\vec{P}_{_{t}}$")
+    momenta_distribution.set_ylabel(r"$\rho(\vec{P}_{_{t}})$")
+    momenta_distribution.set_xlabel(r"$\vec{P}_{_{t}} = \vec{p}_{_{t}}$")
+    momenta_distribution.set_xlim(p_grid.min(), p_grid.max())
+    momenta_distribution.legend(loc='upper left')
     
     # ======================== Animation Function ========================
     milestones = {int(len(walk.data) * p) for p in [0.25, 0.5, 0.75, 1.0]} if verbose else set()
@@ -241,35 +249,66 @@ def visualize_momentum(walk, verbose=None):
         if frame in milestones:
             print(f"[BoundWalk] Rendering: {frame}/{len(walk.data)} ({100*frame//len(walk.data)}%)")
         
-        # Momentum distribution
-        if frame > 1:
-            kde = gaussian_kde(momenta_np[1:frame+1], bw_method=0.1 * momenta_np[1:frame+1].std() * len(momenta_np[1:frame+1])**(-1/5))
-            p_density = kde(p_grid)
-            kde_momenta.set_data(p_grid, p_density)
-            ax_hist.set_ylim(0, p_density.max() * 1.1)
-
-        # Momentum trajectory
-        line_traj.set_data(times_np[:frame+1], momenta_np[:frame+1])
-        marker_traj.set_data([times_np[frame]], [momenta_np[frame]])
-        ymin = momenta_np[:frame+1].min()
-        ymax = momenta_np[:frame+1].max()
-        if ymin == ymax:
-            pad = 1e-6 if ymin == 0 else abs(ymin) * 0.1
-        else:
-            pad = 0.1 * (ymax - ymin)
-
-        ax_traj.set_ylim(ymin - pad, ymax + pad)
-
-        x_max = times_np[frame] if frame > 2 else 2
-        ax_traj.set_xlim(0, x_max)
-
         # Phase space
         if frame > 0:
             phase_point.set_data(positions_np[:frame+1], momenta_np[:frame+1])
             phase_traj.set_data(positions_np[:frame+1], momenta_np[:frame+1])
             
-            ax_phase.set_ylim(momenta_np[:frame+1].min() * 1.1,momenta_np[:frame+1].max() * 1.1)
-    
+            phase_space.set_ylim(momenta_np[:frame+1].min() * 1.1,momenta_np[:frame+1].max() * 1.1)
+
+        # Momentum trajectory
+        momenta_trajectory.set_data(times_np[:frame+1], momenta_np[:frame+1])
+        momenta_marker.set_data([times_np[frame]], [momenta_np[frame]])
+        ymin, ymax = momenta_np[:frame+1].min(), momenta_np[:frame+1].max()
+        if ymin == ymax:
+            pad = 1e-6 if ymin == 0 else abs(ymin) * 0.1
+        else:
+            pad = 0.1 * (ymax - ymin)
+
+        momenta_subplot.set_ylim(ymin - pad, ymax + pad)
+        x_max = times_np[frame] if frame > 2 else 2
+        momenta_subplot.set_xlim(0, x_max)
+
+        # Momentum distribution
+        for coll in list(momenta_distribution.collections): # Clear any previous bar collections
+            coll.remove()
+        
+        if frame == 0: # Dirac delta at initial momentum (usually 0)
+            kde_momenta.set_data([], [])  # Hide KDE
+            normal_line.set_data([], [])  # Hide normal
+            _ = momenta_distribution.stem([walk.initial_momentum], [1000], linefmt='C3-', markerfmt=' ', basefmt=' ')
+            momenta_distribution.set_ylim(0, 1000)
+            
+        elif frame == 1: # Dirac delta at first observed momentum
+            kde_momenta.set_data([], [])  # Hide KDE
+            normal_line.set_data([], [])  # Hide normal
+            _ = momenta_distribution.stem([momenta_np[1]], [1000], linefmt='C3-', markerfmt=' ', basefmt=' ')
+            momenta_distribution.set_ylim(0, 1000)
+            
+        elif frame > 1: # KDE for frame > 1 
+            momenta_subset = momenta_np[1:frame+1]
+            p_std_subset = momenta_subset.std()
+            p_mean_subset = momenta_subset.mean()
+            
+            # Update normal distribution based on current data
+            normal_density = norm.pdf(p_grid, loc=p_mean_subset, scale=p_std_subset)
+            normal_line.set_data(p_grid, normal_density)
+            
+            # Simple check: if std is reasonable, compute KDE
+            if p_std_subset > 1e-10:
+                kde = gaussian_kde(momenta_subset, bw_method=0.1 * p_std_subset * len(momenta_subset)**(-1/5))
+                p_density = kde(p_grid)
+                kde_momenta.set_data(p_grid, p_density)
+                momenta_distribution.fill_between(p_grid, 0, p_density, color='C3', alpha=0.3) # Fill between for visibility
+ 
+                # Update ylim to show both KDE and normal reference
+                max_density = max(p_density.max(), normal_density.max())
+                momenta_distribution.set_ylim(0, max_density * 1.1)
+            else:
+                # If no variation, just hide KDE (shouldn't happen often)
+                kde_momenta.set_data([], [])
+                momenta_distribution.set_ylim(0, normal_density.max() * 1.1)
+
     plt.subplots_adjust(left=0.1, bottom=0.1, hspace=0.4)
     plt.close(fig)
     
@@ -310,63 +349,50 @@ def visualize_energy(walk, verbose=None):
     
     # Create figure
     fig = plt.figure(figsize=(12, 8))
-    gs = GridSpec(3, 2, height_ratios=[1, 1, 1], hspace=0.4, wspace=0.3)
+    gs = GridSpec(3, 1, height_ratios=[1, 1, 1], hspace=0.6)
     
-    # ======================== Subplot 1: Energy vs Time ========================
-    ax_traj = fig.add_subplot(gs[0, :])
-    line_traj, = ax_traj.plot([], [], color="C2", alpha=0.7)
-    marker_traj, = ax_traj.plot([], [], ".", color="C2", label=r"$E_t$")
+    # Subplot 1: Phase Space
+    phase_space = fig.add_subplot(gs[0])
+
+    x_min, x_max = positions_np.min(), positions_np.max()
+    p_min, p_max = momenta_np.min(), momenta_np.max()
+    phase_point, = phase_space.plot([], [], ".", color="C4")
+    phase_traj, = phase_space.plot([], [], color="C4", alpha=0.25)
     
-    # Mark theoretical energy if fixed step
-    if isinstance(walk.step_size, float):
-        E_theory = 0.5 * (walk.step_size / walk.time_scale)**2
-        ax_traj.axhline(E_theory, color='red', linewidth=0.7, linestyle='--', 
-                       alpha=0.7, label=f"$E_{{theory}} = {E_theory:.6f}$")
+    phase_space.hlines(y=p_min, xmin=x_min, xmax=x_max, color='C3', linewidth=0.7, linestyle='--')
+    phase_space.hlines(y=p_max, xmin=x_min, xmax=x_max, color='C3', linewidth=0.7, linestyle='--')
+    phase_space.vlines(x=x_min, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
+    phase_space.vlines(x=x_max, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
+
+    phase_space.set_title(r"Phase Space: $(\vec{X}_{_{t}}, \vec{P}_{_{t}})$")
+    phase_space.set_xlabel(r"$\vec{X}_{_{t}} = \vec{x}_{_{t}}$")
+    phase_space.set_ylabel(r"$\vec{P}_{_{t}} = \vec{p}_{_{t}}$")
+    phase_space.set_xlim(x_min - 0.1*x_max, x_max + 0.1*x_max)
+
+    # Subplot 2: Energy vs Time
+    energy_subplot = fig.add_subplot(gs[1])
+
+    energy_trajectory, = energy_subplot.plot([], [], color="C4")
+    energy_marker, = energy_subplot.plot([], [], ".", color="C4", label=r"$E_{_{t}}$")
+        
+    energy_subplot.set_title(r"$E_{_{t}} = \frac{\vec{P}_{t}^2}{2}$ vs $t$")
+    energy_subplot.set_ylabel(r"$E_{_{t}}$")
+    energy_subplot.set_xlim(0, 10)
+    energy_subplot.tick_params(labelbottom=False)
+    energy_subplot.legend(loc='upper left')
+
+    # Subplot 3: Energy Distribution 
+    energy_distribution = fig.add_subplot(gs[2])
+    e_min, e_max = energies_np.min(), energies_np.max()
+    e_grid = np.linspace(e_min - 0.1*e_max, e_max + 0.1*e_max, 1000)
+    kde_energy, = energy_distribution.plot([], [], color='C4', lw=1, label=r'KDE($E_{_{t}}$)')
     
-    ax_traj.set_title(r"$E_t = \frac{P_t^2}{2m}$ vs $t$")
-    ax_traj.set_ylabel(r"$E_t$")
-    ax_traj.set_xlim(0, 10)
-    ax_traj.tick_params(labelbottom=False)
-    ax_traj.legend(loc='upper right')
-    
-    # ======================== Subplot 2: Energy Distribution ========================
-    ax_hist = fig.add_subplot(gs[1, 0])
-    e_min, e_max = energies_np[1:].min(), energies_np[1:].max()
-    e_range = e_max - e_min if e_max != e_min else 1e-6
-    bins = np.linspace(max(0, e_min - 0.1*e_range), e_max + 0.1*e_range, 50)
-    
-    hist_counts, hist_edges = np.histogram([], bins=bins)
-    hist_width = hist_edges[1] - hist_edges[0]
-    bars = ax_hist.bar(hist_edges[:-1], hist_counts, width=hist_width,
-                       align='edge', color="C2", edgecolor="black", alpha=0.7)
-    
-    ax_hist.set_title(r"$\mathbb{P}(E_t)$ Distribution")
-    ax_hist.set_ylabel("Probability Density")
-    ax_hist.set_xlabel(r"$E_t$")
-    
-    # ======================== Subplot 3: Energy Statistics ========================
-    ax_stats = fig.add_subplot(gs[1, 1])
-    ax_stats.axis('off')
-    stat_text = ax_stats.text(0.1, 0.9, "", transform=ax_stats.transAxes,
-                              verticalalignment='top', fontfamily='monospace', fontsize=10)
-    
-    # ======================== Subplot 4: Phase Space with Energy Contours ========================
-    ax_phase = fig.add_subplot(gs[2, :])
-    scatter = ax_phase.scatter([], [], c=[], cmap='plasma', alpha=0.6, s=15)
-    
-    # Energy contours (for visualization)
-    if isinstance(walk.step_size, float):
-        x_grid = np.linspace(*walk.boundaries, 100)
-        for E_level in [E_theory * 0.5, E_theory, E_theory * 1.5]:
-            p_level = np.sqrt(2 * E_level)
-            ax_phase.axhline(p_level, color='gray', linewidth=0.5, alpha=0.3, linestyle=':')
-            ax_phase.axhline(-p_level, color='gray', linewidth=0.5, alpha=0.3, linestyle=':')
-    
-    ax_phase.set_title(r"Phase Space Colored by Energy")
-    ax_phase.set_xlabel(r"$X_t$")
-    ax_phase.set_ylabel(r"$P_t$")
-    ax_phase.set_xlim(walk.boundaries)
-    
+    energy_distribution.set_title(r"$\rho(E_{_{t}})$ vs $E_{_{t}}$")
+    energy_distribution.set_ylabel(r"$\rho(E_{_{t}})$")
+    energy_distribution.set_xlabel(r"$E_{_{t}} = e_{_{t}}$")
+    energy_distribution.set_xlim(e_min - 0.1*e_max, e_max + 0.1*e_max,)
+    energy_distribution.legend(loc='upper right')
+
     # ======================== Animation Function ========================
     milestones = {int(len(walk.data) * p) for p in [0.25, 0.5, 0.75, 1.0]} if verbose else set()
     
@@ -374,55 +400,59 @@ def visualize_energy(walk, verbose=None):
         if frame in milestones:
             print(f"[BoundWalk] Rendering: {frame}/{len(walk.data)} ({100*frame//len(walk.data)}%)")
         
-        # Energy trajectory
-        line_traj.set_data(times_np[:frame+1], energies_np[:frame+1])
-        marker_traj.set_data([times_np[frame]], [energies_np[frame]])
-        
-        x_max = times_np[frame] if frame > 2 else 2
-        ax_traj.set_xlim(0, x_max)
+        # 1: Phase space
         if frame > 0:
-            e_min_current = energies_np[1:frame+1].min()
-            e_max_current = energies_np[1:frame+1].max()
-            ax_traj.set_ylim(e_min_current * 0.9, e_max_current * 1.1)
-        
-        # Energy distribution
-        if frame > 10:
-            counts, _ = np.histogram(energies_np[1:frame+1], bins=bins)
-            probs = counts / counts.sum() if counts.sum() > 0 else counts
+            phase_point.set_data(positions_np[:frame+1], momenta_np[:frame+1])
+            phase_traj.set_data(positions_np[:frame+1], momenta_np[:frame+1])
             
-            for bar, height in zip(bars, probs):
-                bar.set_height(height)
-            
-            ax_hist.set_ylim(0, probs.max() * 1.1 if probs.max() > 0 else 1)
+            phase_space.set_ylim(momenta_np[:frame+1].min() * 1.1,momenta_np[:frame+1].max() * 1.1)
+
+        # 2: Energy vs time
+        energy_trajectory.set_data(times_np[:frame+1], energies_np[:frame+1])
+        energy_marker.set_data([times_np[frame]], [energies_np[frame]])
         
-        # Statistics text
-        if frame > 0:
-            e_current = energies_np[1:frame+1]
-            stats_str = (
-                f"Steps: {frame}/{N}\n"
-                f"E_mean: {e_current.mean():.8f}\n"
-                f"E_std:  {e_current.std():.8f}\n"
-                f"E_min:  {e_current.min():.8f}\n"
-                f"E_max:  {e_current.max():.8f}"
-            )
-            stat_text.set_text(stats_str)
+        ymin, ymax = energies_np[:frame+1].min(), energies_np[:frame+1].max() 
+        if ymin == ymax:
+            pad = 1e-6 if ymin == 0 else abs(ymin) * 0.1
+        else:
+            pad = 0.1 * (ymax - ymin)
+
+        energy_subplot.set_ylim(ymin, ymax + pad)
+        x_max = times_np[frame] if frame > 2 else 2 
+        energy_subplot.set_xlim(0, x_max)
+
+        # 3: Energy distribution
+        for coll in list(energy_distribution.collections): # clear any previous bar collections
+            coll.remove()
+
+        if frame == 0: # Dirac delta at initial energy 
+            kde_energy.set_data([], []) # Hide KDE
+            _ = energy_distribution.stem([walk.initial_energy], [1000], linefmt='C4-', markerfmt=' ', basefmt=' ')
+            energy_distribution.set_ylim(0, 1000)
         
-        # Phase space
-        if frame > 0:
-            scatter.set_offsets(np.c_[positions_np[:frame+1], momenta_np[:frame+1]])
-            scatter.set_array(energies_np[:frame+1])
+        elif frame == 1: # Dirac delta at first observed momentum
+            kde_energy.set_data([], [])  # Hide KDE
+            _ = energy_distribution.stem([energies_np[1]], [1000], linefmt='C4-', markerfmt=' ', basefmt=' ')
+            energy_distribution.set_ylim(0, 1000)
+
+        elif frame > 1: # KDE for frame > 1 
+            energy_subset = energies_np[1:frame+1]
             
-            p_range = max(abs(momenta_np[:frame+1].min()), abs(momenta_np[:frame+1].max()))
-            ax_phase.set_ylim(-p_range * 1.1, p_range * 1.1)
-    
+            kde = gaussian_kde(energy_subset, bw_method=0.01)
+            e_density = kde(e_grid)
+            kde_energy.set_data(e_grid, e_density)
+            energy_distribution.fill_between(e_grid, 0, e_density, color='C4', alpha=0.3) # Fill between for visibility
+            energy_distribution.set_ylim(0, e_density.max() * 1.1)
+
     plt.subplots_adjust(left=0.08, bottom=0.08, right=0.95, hspace=0.4)
     plt.close(fig)
     
-    anim = FuncAnimation(fig, _animate, frames=len(walk.data),
+    animation = FuncAnimation(fig, _animate, frames=len(walk.data),
                         interval=walk.ms_between_frames, blit=False)
     
     if verbose:
         print("[BoundWalk] Rendering animation...")
-    display(anim)
+    matplotlib.rcParams["animation.embed_limit"] = 50_000_000 # adjust (RC) for increasing animation file size to ~50 MB, may need to turn off for gif creation!
+    display(HTML(animation.to_jshtml()))
     if verbose:
         print("[BoundWalk] Energy animation complete.")
