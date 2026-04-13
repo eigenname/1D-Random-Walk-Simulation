@@ -398,7 +398,7 @@ Developed as an extension of coursework in **PHSX 671: Thermal Physics** at the 
 
 ## Contact
 
-**Hyunje Jun**  
+**Hyunje Kim**  
 GitHub: [@eigenname](https://github.com/eigenname)  
 Email: [available on GitHub profile]
 
