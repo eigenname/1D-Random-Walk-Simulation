@@ -11,19 +11,10 @@ from bw_tools import ( # import all helper functions from bw_tools.py
 import numpy as np # initially, to account for seed reproducibility
 np.seterr(divide='ignore', invalid='ignore')
 import pandas as pd # for storing generated data in a structured format
-import matplotlib.pyplot as plt # initially, to enable file format for displaying anim inline
-from matplotlib.gridspec import GridSpec # to encapsulate all plots proportionally
-from matplotlib import rcParams # for runtime configuration of animation rendering
-rcParams["animation.embed_limit"] = 50_000_000 # increases animation file size to 50 MB
-from matplotlib import rc 
-rc('animation', html='jshtml') # 
-from matplotlib.animation import FuncAnimation # for creating the animation
-from matplotlib.ticker import AutoLocator, MaxNLocator # for integer ticks/labels for entropy vs n plot
 
 from dataclasses import dataclass # for cleaner class definition
 from collections import defaultdict # dict that keeps occurrence count for each position bin
 from scipy.stats import entropy as KL_div # actually KLD method
-from IPython.display import HTML, display # to display anim inline
 
 
 @dataclass(kw_only=True) # use keyword-only arguments for clarity and to avoid confusion when instantiating the class with many parameters
@@ -135,166 +126,41 @@ class BoundWalk:
         if self.verbose:
             print(f"[BoundWalk] Simulation complete. ({N} steps, {len(self.domain)} bins)\n")
     #__________________________________________________________________________________________________________________________
-    def __visualize__(self): 
-        if self.verbose:
-            print("[BoundWalk] Initializing visualization...")
-
-        init_position = self.initial_position
-        N = self.total_steps
-        ΔX = self.step_size
-        left_bound, right_bound = self.boundaries
-        bin_width = self.bin_width
-
-        centers = self.domain 
-        if self.verbose:
-            print(f"[BoundWalk] Preparing domain ({len(centers)} bins)...")
-        edges = np.append(centers - bin_width/2, centers[-1] + bin_width/2)
-
-        fig = plt.figure(figsize=(12,9))
-        gs = GridSpec(4, 2, height_ratios=[1,1,1,1], hspace=0.6)
-        if self.verbose:
-            print("[BoundWalk] Building figure layout...")
-
-        #----------------------- particle_animation ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!
-        particle_animation = fig.add_subplot(gs[0,0]) # 1d bound rand walk anim
-        position, = particle_animation.plot([], [], 'o', markersize=6, color='C0', label="particle") # initialize scatter marker for anim
-        particle_animation.axhline(0, color='black', linewidth=0.7, alpha=0.3) # reference line for y=0
-
-        if isinstance(ΔX, (float, int)):
-            step_info = f"|ΔX| = {ΔX}"
+    def __visualize__(self, observable='position', verbose=None):
+        """
+        Create animated visualization of specified observable
+        
+        Parameters
+        ----------
+        observable : str, default 'position'
+            Which observable to visualize:
+            - 'position': X(t) trajectory + histogram + entropy + KLD (default)
+            - 'momentum': P(t) trajectory + distribution + phase space
+            - 'energy': E(t) conservation + distribution + phase space
+        verbose : bool, optional
+            Override self.verbose for this visualization
+        
+        Examples
+        --------
+        >>> walk = BoundWalk(total_steps=1000, step_size=0.1)
+        >>> walk.visualize('position')  # Default thermalization view
+        >>> walk.visualize('energy')    # Energy conservation view
+        >>> walk.visualize('momentum')  # Momentum/phase space view
+        """
+        import bw_viz
+        importlib.reload(bw_viz)
+        
+        if observable == 'position':
+            bw_viz.visualize_position(self, verbose=verbose)
+        elif observable == 'momentum':
+            bw_viz.visualize_momentum(self, verbose=verbose)
+        elif observable == 'energy':
+            bw_viz.visualize_energy(self, verbose=verbose)
         else:
-            match self.step_size['type']:
-                case 'uniform':
-                    step_info = rf"|ΔX| \sim \mathcal{{U}}[{ΔX['bounds'][0]}, {ΔX['bounds'][1]}]"
-                case 'normal':
-                    step_info = rf"|ΔX| \sim \mathcal{{N}}({ΔX['params'][0]}, {ΔX['params'][1]**2})"
-        
-        particle_animation.set_title(rf"$\mathcal{{BW}}: \ N \equiv {{{N}}}, {step_info}, X_0 \equiv {{{init_position}}}, \ x_{{_{{t}}}} \smallin \mathbb{{R}}_{{_{{{[left_bound, right_bound]}}}}}$")
-
-        particle_animation.get_yaxis().set_visible(False) # don't need to see yaxis ticks/labels
-        particle_animation.set_xlabel(rf"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
-        particle_animation.set_ylim(-0.05, 0.1) # limit yaxis dimensions
-        particle_animation.set_xlim(left_bound, right_bound) # walk will be confined within (a,b)
-        particle_animation.legend(loc='upper left')
-
-        #----------------------- histogram ---------------------- !!! 1st row, 2nd col: Probability Histogram !!!
-        histogram = fig.add_subplot(gs[0,1]) # prob hist of positions
-        bars = histogram.bar(centers, np.zeros_like(centers), width=bin_width, align='center',color="C0", edgecolor="black", alpha=0.7)
-        histogram.axhline(1/len(centers), color="red", linestyle="--", linewidth=0.8, label=rf"$U[{left_bound},{right_bound}]$")
-
-        histogram.set_title(r"$\hat\mathbb{P}(X_{{_{{t}}}})$ Histogram")
-        histogram.set_ylabel(r"$\hat\mathbb{P} \smallin \mathbb{{R}}_{{_{[0, 1]}}}$ ")
-        histogram.set_xlabel(rf"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
-        histogram.set_xlim(left_bound, right_bound)
-        histogram.legend(loc='upper right') # enables label for U(a,b) PDF, fix to upper right
-
-        #----------------------- position_plot ---------------------- !!! 2nd row: Position vs N plot !!!
-        position_plot = fig.add_subplot(gs[1, :]) # plot of positions vs n
-        line_plot, = position_plot.plot([], [], color="C0", alpha=0.7)
-        marker_plot, = position_plot.plot([], [], ".", color="C0", label=r"$x_{{_{{t}}}}$")
-
-        position_plot.set_title(r"$X_{{_{{t}}}}$ vs $t \to \infty$")
-        position_plot.set_ylabel(r"$X_{{_{{t}}}} = x_{{_{{t}}}}$")
-        position_plot.set_ylim(left_bound, right_bound) # limit yaxis dimensions to boundaries
-        position_plot.set_xlim(0, 10)    # add this — propagates to ax_entr and ax_norm via sharex
-        position_plot.tick_params(labelbottom=False)   # hide x tick labels
-        position_plot.legend(loc='upper left')
-
-        #----------------------- entropy_plot ---------------------- !!! 3rd row: Entropy vs N Plot !!!
-        entropy_plot = fig.add_subplot(gs[2,:], sharex=position_plot) # entropy vs n
-        line_entr, = entropy_plot.plot([], [], color="C0", alpha=0.7)
-        marker_entr, = entropy_plot.plot([], [], ".", color="C0", label=rf"$S_{{G}}[X_{{_{{t}}}}]$")
-        entropy_plot.axhline(np.log(len(centers)), color='red', linewidth=0.7, linestyle='--', alpha=0.7, label=rf"$S_{{_{{B}}}} = \ln({len(centers)})$")  # Boltzmann Entropy supremum
-
-        entropy_plot.set_title(r"$S_{_{G}}[X_{{_{{t}}}}]$ vs $t \to \infty$")
-        entropy_plot.set_ylabel(r"$S_{_{G}}[X_{{_{{t}}}}] = -\sum \hat\mathbb{P}(X_{{_{{t}}}}) ln(\hat\mathbb{P}(X_{{_{{t}}}}))$")
-        entropy_plot.set_ylim(0, np.log(len(centers)) + 0.5) # default before any data — positive only
-        entropy_plot.tick_params(labelbottom=False)   # hide x tick labels
-        entropy_plot.legend(loc='upper left')
-
-        #----------------------- kld_plot ---------------------- !!! 4th row: KLD vs N Plot !!!
-        kld_plot = fig.add_subplot(gs[3,:], sharex=position_plot) # KLD vs N
-        line_kld, = kld_plot.plot([], [], color="C0", alpha=0.7)
-        marker_kld, = kld_plot.plot([], [], ".", color="C0", label=rf"$D_{{KL}}(\hat\mathbb{{P}}||U)$")
-
-        kld_plot.set_title(r"$D_{{KL}}(\hat\mathbb{P}||U)$ vs $t \to \infty$")
-        kld_plot.set_ylabel(r"$D_{{KL}}(\hat\mathbb{P}||U)$")
-        kld_plot.set_xlabel(r"$t \to \infty$")
-        kld_plot.set_ylim(0, np.log(len(centers)) + 0.5)      # default before any data — positive only 
-        kld_plot.legend(loc='upper left')
-
-        if self.verbose:
-            print("[BoundWalk] Configuring plots and annotations...")
-            print(f"[BoundWalk] Creating animation ({len(self.data)} frames)...")
-        #=========================================================================================== 
-        positions_np = self.data['nth Position'].to_numpy()
-        times_np = self.data['t'].to_numpy()
-        entropies_np = self.data['nth Entropy'].to_numpy()
-        klds_np = self.data['nth KLD'].to_numpy()
-        milestones = {int(len(self.data) * p) for p in [0.25, 0.5, 0.75, 1.0]}
-        def _animate(frame): # i within [0, len(walk.data)]
-            if self.verbose and frame in milestones:
-                print(f"[BoundWalk] Rendering animation: {frame}/{len(self.data) } ({100*frame/len(self.data) :.0f}%)")
-            Δt = self.time_scale
-            #----------------------- particle_animation ---------------------- !!! 1st row, 1st col: 1D Position(N) !!!
-            current_pos = positions_np[frame] # find nth Position given t=frame
-            position.set_data([current_pos], [0]) # move position marker to (x=current_pos, y=0)
-
-            #----------------------- histogram ---------------------- !!! 1st row, 2nd col: Probability Histogram !!!
-            if frame == 0: # delta distribution at initial position
-                probs = np.zeros(len(bars)) # initialize 0 vector of len of histogram values
-                probs[np.argmin(np.abs(self.domain - self.initial_position))] = 1.0 # determine index of initial_position and 
-
-            else: # compute histogram probabilities based on positions up to current frame
-                current_positions = positions_np[1:frame+1]
-                counts, _ = np.histogram(current_positions, bins=edges)
-                probs = counts / counts.sum() if counts.sum() > 0 else np.zeros_like(counts)
-
-            for bar, height in zip(bars, probs): # update histogram bars
-                bar.set_height(height)
-
-            histogram.set_ylim(0, max(probs.max(), 1/len(centers) * 1.5) * 1.05) # never let ylim drop below ~1.5x the uniform line
-            yticks = np.linspace(0, max(probs.max(), 1/len(centers) * 1.5), 5)
-            histogram.set_yticks(yticks)
-            histogram.set_yticklabels([f"{y:.3f}" for y in yticks])
-
-            #----------------------- position_plot ---------------------- !!! 2nd row: Position vs N plot !!!
-            steps = times_np[:frame+1] # steps from 0 to current frame n, for x-axis of position plot 
-            positions = positions_np[:frame+1]
-            line_plot.set_data(steps, positions)
-            marker_plot.set_data([frame * Δt], [positions_np[frame]]) # move marker to current position at this frame, adjusted by time scale
-
-            x_max = frame * Δt if frame > 2 else 2
-            position_plot.relim()
-            position_plot.set_xlim(0, x_max)   # expand as n grows beyond 10
-            position_plot.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6)) # set x ticks at multiples of Δt for shared plots
-
-            #----------------------- entropy_plot ---------------------- !!! 3rd row: Entropy vs N Plot !!!
-            steps = times_np[1:frame+1] # steps from 1 to current frame n, for x-axis of entropy and KLD plots
-            entropies = entropies_np[1:frame+1]
-            line_entr.set_data(steps, entropies)
-            marker_entr.set_data([frame * Δt], [entropies_np[frame]])
-            entropy_plot.relim()
-            entropy_plot.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6))
-
-            #----------------------- kld_plot ---------------------- !!! 4th row: KLD vs N Plot !!!
-            klds = klds_np[1:frame+1]
-            line_kld.set_data(steps, klds)
-            marker_kld.set_data([frame * Δt], [klds_np[frame]])
-            kld_plot.relim()
-            kld_plot.xaxis.set_major_locator(MaxNLocator(integer=False, prune='both', nbins=6))
-        #===========================================================================================
-        plt.subplots_adjust(left=0.075, bottom=0.075, hspace=0.4)  # for adjusting margins
-        plt.close(fig) # ensure no static plots are displayed
-        animation = FuncAnimation(fig, _animate, frames=len(self.data),
-                interval=self.ms_between_frames, # delay between frames in milliseconds 
-                blit=False  # blitting doesn’t play well with clearing/replotting
-            )
-        
-        if self.verbose:
-            print("[BoundWalk] Finalizing animation output...")
-        #display(HTML(animation.to_jshtml())) # for interactive HTML widget inline in notebook
-        display(animation)
-        if self.verbose:
-            print("[BoundWalk] Visualization complete.")
+            raise ValueError(f"Unknown observable '{observable}'. Choose from: 'position', 'momentum', 'energy'")
+    
+    # Legacy alias for backward compatibility
+    # def __visualize__(self, observable='position', verbose=None):
+    #     """Deprecated: use .visualize() instead"""
+    #     return self.visualize(observable=observable, verbose=verbose)
     #__________________________________________________________________________________________________________________________
