@@ -6,7 +6,7 @@ Provides visualization functions for different observables from BoundWalk simula
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from scipy.stats import gaussian_kde, norm
+from scipy.stats import gaussian_kde, norm, expon
 from matplotlib.gridspec import GridSpec
 from matplotlib.animation import FuncAnimation
 from matplotlib.ticker import MaxNLocator
@@ -296,7 +296,8 @@ def visualize_momentum(walk, verbose=None):
             
             # Simple check: if std is reasonable, compute KDE
             if p_std_subset > 1e-10:
-                kde = gaussian_kde(momenta_subset, bw_method=0.1 * p_std_subset * len(momenta_subset)**(-1/5))
+                # kde = gaussian_kde(momenta_subset, bw_method=0.1 * p_std_subset * len(momenta_subset)**(-1/5))
+                kde = gaussian_kde(momenta_subset, bw_method=0.05) 
                 p_density = kde(p_grid)
                 kde_momenta.set_data(p_grid, p_density)
                 momenta_distribution.fill_between(p_grid, 0, p_density, color='C3', alpha=0.3) # Fill between for visibility
@@ -384,13 +385,14 @@ def visualize_energy(walk, verbose=None):
     # Subplot 3: Energy Distribution 
     energy_distribution = fig.add_subplot(gs[2])
     e_min, e_max = energies_np.min(), energies_np.max()
-    e_grid = np.linspace(e_min - 0.1*e_max, e_max + 0.1*e_max, 1000)
+    e_grid = np.linspace(e_min, e_max, 1000)
     kde_energy, = energy_distribution.plot([], [], color='C4', lw=1, label=r'KDE($E_{_{t}}$)')
-    
+    energy_line, = energy_distribution.plot([], [], 'k--', linewidth=1, label=r'Exp$(\lambda)$')
+
     energy_distribution.set_title(r"$\rho(E_{_{t}})$ vs $E_{_{t}}$")
     energy_distribution.set_ylabel(r"$\rho(E_{_{t}})$")
     energy_distribution.set_xlabel(r"$E_{_{t}} = e_{_{t}}$")
-    energy_distribution.set_xlim(e_min - 0.1*e_max, e_max + 0.1*e_max,)
+    energy_distribution.set_xlim(e_min, e_max)
     energy_distribution.legend(loc='upper right')
 
     # ======================== Animation Function ========================
@@ -437,12 +439,16 @@ def visualize_energy(walk, verbose=None):
 
         elif frame > 1: # KDE for frame > 1 
             energy_subset = energies_np[1:frame+1]
+            energy_density = expon.pdf(e_grid, scale=energy_subset.mean()) # Exponential reference distribution for positive energies
+            energy_line.set_data(e_grid, energy_density) # * energy_subset.std() * len(energy_subset)**(-1/5)
             
-            kde = gaussian_kde(energy_subset, bw_method=0.01)
+            kde = gaussian_kde(energy_subset, bw_method=0.05)
             e_density = kde(e_grid)
             kde_energy.set_data(e_grid, e_density)
             energy_distribution.fill_between(e_grid, 0, e_density, color='C4', alpha=0.3) # Fill between for visibility
-            energy_distribution.set_ylim(0, e_density.max() * 1.1)
+            
+            max_density = max(e_density.max(), energy_density.max())
+            energy_distribution.set_ylim(0, max_density * 1.1)
 
     plt.subplots_adjust(left=0.08, bottom=0.08, right=0.95, hspace=0.4)
     plt.close(fig)
