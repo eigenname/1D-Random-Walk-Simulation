@@ -214,7 +214,7 @@ def visualize_momentum(walk, verbose=None):
     phase_space.vlines(x=x_min, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
     phase_space.vlines(x=x_max, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
 
-    phase_space.set_title(r"Phase Space: $(\vec{X}_{_{t}}, \vec{P}_{_{t}})$")
+    phase_space.set_title(r"$(\vec{X}_{_{t}}, \vec{P}_{_{t}}) = (\vec{x}_{_{t}}, \vec{p}_{_{t}})$")
     phase_space.set_xlabel(r"$\vec{X}_{_{t}} = \vec{x}_{_{t}}$")
     phase_space.set_ylabel(r"$\vec{P}_{_{t}} = \vec{p}_{_{t}}$")
     phase_space.set_xlim(x_min - 0.1*x_max, x_max + 0.1*x_max)
@@ -365,7 +365,7 @@ def visualize_energy(walk, verbose=None):
     phase_space.vlines(x=x_min, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
     phase_space.vlines(x=x_max, ymin=p_min, ymax=p_max, color='blue', linewidth=0.7, linestyle='--')
 
-    phase_space.set_title(r"Phase Space: $(\vec{X}_{_{t}}, \vec{P}_{_{t}})$")
+    phase_space.set_title(r"$(\vec{X}_{_{t}}, \vec{P}_{_{t}}) = (\vec{x}_{_{t}}, \vec{p}_{_{t}})$")
     phase_space.set_xlabel(r"$\vec{X}_{_{t}} = \vec{x}_{_{t}}$")
     phase_space.set_ylabel(r"$\vec{P}_{_{t}} = \vec{p}_{_{t}}$")
     phase_space.set_xlim(x_min - 0.1*x_max, x_max + 0.1*x_max)
@@ -376,8 +376,9 @@ def visualize_energy(walk, verbose=None):
     energy_trajectory, = energy_subplot.plot([], [], color="C4")
     energy_marker, = energy_subplot.plot([], [], ".", color="C4", label=r"$E_{_{t}}$")
         
-    energy_subplot.set_title(r"$E_{_{t}} = \frac{\vec{P}_{t}^2}{2}$ vs $t$")
-    energy_subplot.set_ylabel(r"$E_{_{t}}$")
+    energy_subplot.set_title(r"$E_{_{t}}$ vs $t$")
+    energy_subplot.set_ylabel(r"$E_{_{t}} = \frac{\vec{P}_{t}^2}{2}$")
+    energy_subplot.set_xlabel(r"$t \to \infty$")
     energy_subplot.set_xlim(0, 10)
     energy_subplot.tick_params(labelbottom=False)
     energy_subplot.legend(loc='upper left')
@@ -387,7 +388,7 @@ def visualize_energy(walk, verbose=None):
     e_min, e_max = energies_np.min(), energies_np.max()
     e_grid = np.linspace(e_min, e_max, 1000)
     kde_energy, = energy_distribution.plot([], [], color='C4', lw=1, label=r'KDE($E_{_{t}}$)')
-    energy_line, = energy_distribution.plot([], [], 'k--', linewidth=1, label=r'Exp$(\lambda)$')
+    energy_line, = energy_distribution.plot([], [], 'k--', linewidth=1, label=r'Exp$(\lambda_{_{t}})$')
 
     energy_distribution.set_title(r"$\rho(E_{_{t}})$ vs $E_{_{t}}$")
     energy_distribution.set_ylabel(r"$\rho(E_{_{t}})$")

@@ -159,9 +159,4 @@ class BoundWalk:
             bw_viz.visualize_energy(self, verbose=verbose)
         else:
             raise ValueError(f"Unknown observable '{observable}'. Choose from: 'position', 'momentum', 'energy'")
-    
-    # Legacy alias for backward compatibility
-    # def __visualize__(self, observable='position', verbose=None):
-    #     """Deprecated: use .visualize() instead"""
-    #     return self.visualize(observable=observable, verbose=verbose)
     #__________________________________________________________________________________________________________________________
