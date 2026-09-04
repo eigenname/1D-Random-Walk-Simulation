@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boundary Conditions — The Random Walk</title>
+  <link rel="stylesheet" href="../style.css" />
+
+  <!-- KaTeX, for the formulas throughout this page -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="site-title" href="../index.html">The Random Walk</a>
+      <nav class="site-nav">
+        <ul>
+          <li class="nav-dropdown">
+            <button class="nav-dropdown-toggle" aria-expanded="false">The Theory</button>
+            <ul class="nav-dropdown-menu">
+              <li><a href="1d-random-walk.html">1D Random Walk</a></li>
+              <li><a href="boundary-conditions.html">Boundary Conditions</a></li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <article>
+      <p class="kicker">The Theory</p>
+      <h1>Boundary Conditions</h1>
+
+      <p>
+        Confine the <a href="1d-random-walk.html">unbounded walk</a> to a
+        finite interval $[a, b]$ with reflecting boundaries, and the whole
+        character of the process changes — from a diffusion that spreads
+        forever to one that settles into equilibrium. This is the model
+        behind <code>BoundWalk</code>.
+      </p>
+
+      <h2>Reflecting Boundaries</h2>
+      <p>
+        Rather than absorbing the walker at the edges, a reflecting
+        (Neumann) boundary folds any overshoot back into the domain: a step
+        that would land past $b$ bounces back by exactly the amount it
+        overshot, and likewise at $a$. The fold-back rule is applied
+        repeatedly so it holds even for step sizes much larger than the
+        domain itself — the walker always ends the step somewhere inside
+        $[a, b]$.
+      </p>
+
+      <h2>Thermalization</h2>
+      <p>
+        Each step here is drawn independently of the last — the walk has no
+        memory of its direction or history, which places it in the
+        <strong>overdamped Langevin limit</strong>: the statistical
+        description of a particle that has already fully thermalized with
+        its surroundings. Run long enough, and the empirical position
+        distribution converges to uniform over $[a, b]$ regardless of where
+        the walk started — the system "forgets" its initial condition, the
+        same way a gas forgets which corner of a box it was released into.
+      </p>
+
+      <div class="plot-embed">
+        <!-- TODO: swap in the real export once the Python pipeline exists.
+             Expected file: ../plots/boundary_conditions_walk.html -->
+        <iframe src="../plots/boundary_conditions_walk.html" loading="lazy"></iframe>
+      </div>
+      <p class="plot-caption">
+        A bounded trajectory with reflections, alongside its position
+        distribution converging toward uniform.
+      </p>
+
+      <h2>Entropy and KL Divergence</h2>
+      <p>
+        Two information-theoretic observables track that convergence
+        directly. The Shannon entropy of the empirical position
+        distribution at step $n$,
+      </p>
+      <p>$$H[X_n] = -\sum_i p_i \ln p_i,$$</p>
+      <p>
+        grows from zero (the walker's exact starting position, a delta
+        function) toward the Boltzmann supremum $\ln W$, where $W$ is the
+        number of accessible position bins — the maximum entropy state is
+        the uniform distribution. In parallel, the KL divergence from the
+        uniform reference distribution,
+      </p>
+      <p>$$D_{KL}(P \,\|\, U) = \sum_i p_i \ln \frac{p_i}{u_i},$$</p>
+      <p>
+        starts large and decays toward zero as the empirical distribution
+        $P$ approaches the uniform $U$ — a direct measure of how far from
+        equilibrium the walk still is.
+      </p>
+
+      <h2>Entropy Scaling Law</h2>
+      <p>
+        Sweep over step count $N$ the same way as the unbounded case, and
+        the maximal entropy reached by each run, $S_{max}$, grows
+        <em>logarithmically</em> rather than the $\sqrt{N}$ behavior seen
+        without boundaries:
+      </p>
+      <p>$$S_{max} \sim \ln N.$$</p>
+      <p>
+        This connects directly to Boltzmann's entropy formula $S = k_B \ln
+        W$: as $N$ grows, the walk explores more of its bounded domain, $W$
+        grows with it, and the entropy ceiling rises logarithmically. The
+        standard deviation of position becomes logarithmic in $N$ as well,
+        in contrast to the $\sqrt{N}$ scaling of the free walk.
+      </p>
+
+      <h2>What's Next</h2>
+      <p>
+        Future chapters will extend this model with explicit dynamics —
+        Langevin dynamics with friction and an explicit thermal bath
+        coupling, a phase-space view $(x, v)$ with energy contours, and
+        eventually a 2D extension. This page will grow alongside those.
+      </p>
+    </article>
+  </main>
+
+  <footer>
+    <p>
+      Source on <a href="https://github.com/eigenname/1D-Random-Walk-Simulation">GitHub</a>.
+    </p>
+  </footer>
+
+  <script src="../nav.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      renderMathInElement(document.body, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false }
+        ]
+      });
+    });
+  </script>
+</body>
+</html>
