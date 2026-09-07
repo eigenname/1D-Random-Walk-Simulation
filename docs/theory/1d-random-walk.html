@@ -19,7 +19,7 @@
       <nav class="site-nav">
         <ul>
           <li class="nav-dropdown">
-            <button class="nav-dropdown-toggle" aria-expanded="false">The Theory</button>
+            <button class="nav-dropdown-toggle" aria-expanded="false">The Lore</button>
             <ul class="nav-dropdown-menu">
               <li><a href="1d-random-walk.html">1D Random Walk</a></li>
               <li><a href="boundary-conditions.html">Boundary Conditions</a></li>
@@ -32,24 +32,20 @@
 
   <main>
     <article>
-      <p class="kicker">The Theory</p>
+      <p class="kicker">The Lore</p>
       <h1>1D Random Walk</h1>
 
       <p>
-        The starting point is the simplest possible random process: a walker
-        on the integers, beginning at the origin, taking a step of $\pm 1$
-        at each tick with equal probability. No boundaries, no bias — just
-        the accumulation of independent coin flips. Everything on this page
-        builds from that one rule.
+        Aka the "drunkard's walk", a 1D random walk is the simplest possible random walk: a pedestrian takes steps of fixed size in either direction.<br>
+
       </p>
 
-      <h2>The Walk</h2>
+      <h2>The Brass Tacks</h2>
       <p>
-        A single walk of $N$ steps produces one trajectory $X_0, X_1,
-        \dots, X_N$, where $X_n = X_{n-1} + \xi_n$ and each $\xi_n \in
-        \{-1, +1\}$ is drawn independently with $P(\xi_n = +1) = P(\xi_n =
-        -1) = \tfrac{1}{2}$. That trajectory is the fundamental object —
-        everything else here is a statistic computed over many of them.
+        We can model the pedestrian as a particle and track their position as a stocastic process, where for simplicity, we assume the following: the walk starts at the origin $X_{_0} \equiv 0$ and each step taken is of unit step size $|\Delta X| \equiv 1$.<br>
+        Then with this notation, the pedestrian's final position after $N$ steps is $X_{_N} \in \mathbb{Z}$.<br>
+        Therefore, a single walk of $N$ total steps produces one trajectory $(X_{_0}, X_{_1}, \dots, X_{_N})$, where $\forall \ n \leq N \in \mathbb{N}, \ X_{_n} = X_{_{n-1}} + \Delta X_{_n}$ and each displacement 
+        $\Delta X_{_n} = \pm 1$ is sampled independently with $\text{Prob}(\Delta X_{_n} = +1) + \text{Prob}(\Delta X_{_n} = -1) \coloneqq 1$. 
       </p>
 
       <div class="plot-embed">
@@ -59,46 +55,18 @@
       </div>
       <p class="plot-caption">A single walk's trajectory, position vs. step.</p>
 
-      <h2>Trial: An Ensemble of Walks</h2>
+      <h2>Biases or Equality of Directions</h2>
       <p>
-        Run the same experiment $M$ times — $M$ independent walks, all of
-        length $N$, all starting at the origin — and look at where each one
-        ends up. This ensemble is a <em>trial</em>, and its observable is
-        the net displacement $X_N$ of each walk. Two things fall out
-        empirically almost immediately:
-      </p>
-      <p>
-        The expected net displacement is zero, $\langle X_N \rangle \approx
-        0$ — the walk is unbiased, so left and right steps cancel on
-        average. And the spread around that zero grows with the square root
-        of the step count,
-      </p>
-      <p>$$\sigma_N \approx \sqrt{N}.$$</p>
-      <p>
-        As $M$ grows, the distribution of net displacements across the
-        ensemble converges toward a Gaussian — the Central Limit Theorem
-        showing up directly in simulation, not just in the derivation.
+        Note that with our formalism so far, the probabilities (or the <em>biases</em>) associated with each displacement are still arbitrary. <br>
+        Since the displacement itself is a Bernoulli process, $(\Delta X_{_1}, \dots, \Delta X_{_N}) \in \{+1, -1\}^N$, we state that the walk is
+        <em>biased</em> if $\text{Prob}(\Delta X_{_n} = +1) \neq \text{Prob}(\Delta X_{_n} = -1)$, e.g. $\text{Prob}(\Delta X_{_n} = +1) > \text{Prob}(\Delta X_{_n} = -1) = 1 - \text{Prob}(\Delta X_{_n} = +1)$.<br>
+        Otherwise the walk is <em>unbiased</em>, or has <em>equiprobable</em> displacements, i.e. $\text{Prob}(\Delta X_{_n} = +1) = \text{Prob}(\Delta X_{_n} = -1) \equiv 1/2$. <br>
       </p>
 
-      <h2>List: Scaling with N</h2>
+      <h2>Final Remarks</h2>
       <p>
-        Repeat the trial at increasing step counts $N_1 < N_2 < \cdots$ and
-        track how $\sigma_N$ moves. Plotting $\sigma_N$ against $N$
-        confirms the $\sqrt{N}$ scaling directly: variance grows linearly
-        with the number of steps, so the standard deviation grows with its
-        square root. This is the same diffusive scaling that shows up
-        everywhere from Brownian motion to random-walk models of diffusion.
-      </p>
-
-      <h2>What's Next</h2>
-      <p>
-        This walk is unbounded — the walker can drift arbitrarily far in
-        either direction, and there's no equilibrium to speak of. The next
-        chapter, <a href="boundary-conditions.html">Boundary Conditions</a>,
-        confines the walk to a finite interval with reflecting boundaries.
-        That single change turns the walk from a diffusion process into a
-        thermalizing one — the $\sqrt{N}$ scaling above gives way to a
-        logarithmic entropy growth toward equilibrium.
+        This covers an introductory formalism for the 1D random walk. Though note this walk is unbounded — the pedestrian/particle can drift arbitrarily far in either direction — 
+        and that we have not distinguished the number of steps taken versus the time elapsed.
       </p>
     </article>
   </main>

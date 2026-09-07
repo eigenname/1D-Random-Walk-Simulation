@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>The Random Walk</title>
+  <title>Homepage</title> <!-- name of browser tab -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
   <header class="site-header">
     <div class="site-header-inner">
-      <a class="site-title" href="index.html">The Random Walk</a>
+      <a class="site-title" href="index.html">The Random Walk</a> <!-- name of site, takes you back to homepage -->
       <nav class="site-nav">
         <ul>
           <li class="nav-dropdown">
-            <button class="nav-dropdown-toggle" aria-expanded="false">The Theory</button>
+            <button class="nav-dropdown-toggle" aria-expanded="false">The Lore</button>
             <ul class="nav-dropdown-menu">
               <li><a href="theory/1d-random-walk.html">1D Random Walk</a></li>
               <li><a href="theory/boundary-conditions.html">Boundary Conditions</a></li>
@@ -29,15 +29,13 @@
     <section class="hero">
       <h1>The Random Walk</h1>
       <p class="tagline">
-        A running notebook on the 1D random walk — from the plain unbiased
-        walk and its &radic;N scaling, to reflecting boundaries, entropy
-        production, and thermalization.
+        A running notebook on the 1D random walk.
       </p>
       <p>
         This site collects the theory, simulations, and interactive figures
         behind an ongoing project studying random walks through the lens of
-        statistical mechanics and information theory — starting from a
-        thermal physics course assignment and growing from there. The code
+        statistical mechanics and information theory — originating from a
+        thermal physics course assignment and a continuation from there. The code
         behind these figures lives in the
         <a href="https://github.com/eigenname/1D-Random-Walk-Simulation">
           1D-Random-Walk-Simulation
@@ -49,15 +47,13 @@
       <a class="card-link" href="theory/1d-random-walk.html">
         <div class="card-link-title">1D Random Walk</div>
         <div class="card-link-desc">
-          The unbiased walk, net displacement, and why the standard
-          deviation grows as &radic;N.
+          1-dimensional random walk theory: formalizing notation and establishing equiprobable directions.
         </div>
       </a>
       <a class="card-link" href="theory/boundary-conditions.html">
         <div class="card-link-title">Boundary Conditions</div>
         <div class="card-link-desc">
-          Reflecting boundaries, thermalization, Shannon entropy, and KL
-          divergence toward equilibrium.
+          Imposed reflecting boundaries: discussing symmetry of boundary conditions, step size smaller than 1, & scaling for time.
         </div>
       </a>
     </section>

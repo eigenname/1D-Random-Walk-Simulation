@@ -13,6 +13,9 @@ matplotlib>=3.8.0
 # Statistical tools (for KL divergence computation)
 scipy>=1.11.0
 
+# Local dev server for previewing docs/ (GitHub Pages site)
+flask>=3.0.0
+
 # Jupyter notebook interface (optional but recommended)
 jupyter>=1.0.0
 notebook>=7.0.0
